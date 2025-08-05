@@ -1,0 +1,40 @@
+EXAMPLE FORMAT - Information Utility Network Requirements
+
+=== ORGANIZATIONS ===
+1. Organization Name: [Name]
+   MSP ID: [MSP_ID]
+   Role: [Description]
+   Responsibilities: [List]
+
+2. Organization Name: [Name]
+   MSP ID: [MSP_ID]
+   Role: [Description]
+   Responsibilities: [List]
+
+=== CHANNELS ===
+1. Channel Name: [Name]
+   Purpose: [Description]
+   Participants: [List of organizations]
+   Endorsement Policy: [Policy details]
+
+2. Channel Name: [Name]
+   Purpose: [Description]
+   Participants: [List of organizations]
+   Endorsement Policy: [Policy details]
+
+=== DATA SCHEMA ===
+Data Type: [Type]
+Fields:
+- field1: [type] - [description]
+- field2: [type] - [description]
+
+=== WORKFLOW ===
+Process 1: [Name]
+Steps:
+1. [Step description]
+2. [Step description]
+
+=== API ENDPOINTS ===
+Endpoint: [URL]
+Method: [GET/POST/PUT/DELETE]
+Purpose: [Description]

@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Information Utility - Member Management</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .danger {
+            background-color: #dc3545;
+        }
+        .danger:hover {
+            background-color: #c82333;
+        }
+        .success {
+            background-color: #28a745;
+        }
+        .success:hover {
+            background-color: #218838;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+            display: none;
+        }
+        .result.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .result.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .users-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .user-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .user-item:last-child {
+            border-bottom: none;
+        }
+        .api-endpoint {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            background-color: #f8f9fa;
+            border: 1px solid #ddd;
+            cursor: pointer;
+            border-radius: 4px 4px 0 0;
+            margin-right: 5px;
+        }
+        .tab.active {
+            background-color: #007bff;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Information Utility - Member Management</h1>
+        <p>Manage organization members and MSP certificates for the Hyperledger Fabric Information Utility network.</p>
+
+        <div class="tabs">
+            <div class="tab active" onclick="showTab('enroll-admin')">Enroll Admin</div>
+            <div class="tab" onclick="showTab('register-user')">Register User</div>
+            <div class="tab" onclick="showTab('view-users')">View Users</div>
+            <div class="tab" onclick="showTab('revoke-user')">Revoke User</div>
+            <div class="tab" onclick="showTab('organizations')">Organizations</div>
+        </div>
+
+        <!-- Enroll Admin Tab -->
+        <div id="enroll-admin" class="tab-content active">
+            <div class="section">
+                <h2>Enroll Admin</h2>
+                <p>Enroll an admin user for an organization. This is required before registering other users.</p>
+                
+                <div class="api-endpoint">POST /api/msp/admin/enroll</div>
+                
+                <form id="enrollAdminForm">
+                    <div class="form-group">
+                        <label for="adminOrgName">Organization:</label>
+                        <select id="adminOrgName" required>
+                            <option value="">Select Organization</option>
+                            <option value="iu-gov">IU Government (IUGovMSP)</option>
+                            <option value="iu-data">IU Data (IUDataMSP)</option>
+                            <option value="iu-service">IU Service (IUServiceMSP)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="adminUser">Admin Username:</label>
+                        <input type="text" id="adminUser" value="admin" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="adminPassword">Admin Password:</label>
+                        <input type="password" id="adminPassword" value="adminpw" required>
+                    </div>
+                    <button type="submit">Enroll Admin</button>
+                </form>
+                <div id="enrollAdminResult" class="result"></div>
+            </div>
+        </div>
+
+        <!-- Register User Tab -->
+        <div id="register-user" class="tab-content">
+            <div class="section">
+                <h2>Register New User</h2>
+                <p>Register and enroll a new user in an organization.</p>
+                
+                <div class="api-endpoint">POST /api/msp/users/register</div>
+                
+                <form id="registerUserForm">
+                    <div class="form-group">
+                        <label for="userOrgName">Organization:</label>
+                        <select id="userOrgName" required>
+                            <option value="">Select Organization</option>
+                            <option value="iu-gov">IU Government (IUGovMSP)</option>
+                            <option value="iu-data">IU Data (IUDataMSP)</option>
+                            <option value="iu-service">IU Service (IUServiceMSP)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="userId">User ID:</label>
+                        <input type="text" id="userId" placeholder="e.g., user1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="userRole">User Role:</label>
+                        <select id="userRole">
+                            <option value="client">Client</option>
+                            <option value="peer">Peer</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                    <button type="submit">Register User</button>
+                </form>
+                <div id="registerUserResult" class="result"></div>
+            </div>
+        </div>
+
+        <!-- View Users Tab -->
+        <div id="view-users" class="tab-content">
+            <div class="section">
+                <h2>View Organization Users</h2>
+                <p>View all users enrolled in an organization.</p>
+                
+                <div class="api-endpoint">GET /api/msp/organizations/{orgName}/users</div>
+                
+                <div class="form-group">
+                    <label for="viewOrgName">Organization:</label>
+                    <select id="viewOrgName">
+                        <option value="">Select Organization</option>
+                        <option value="iu-gov">IU Government (IUGovMSP)</option>
+                        <option value="iu-data">IU Data (IUDataMSP)</option>
+                        <option value="iu-service">IU Service (IUServiceMSP)</option>
+                    </select>
+                </div>
+                <button onclick="loadUsers()">Load Users</button>
+                <button onclick="loadAllOrganizations()" class="success">Load All Organizations</button>
+                
+                <div id="usersResult" class="result"></div>
+                <div id="usersList" class="users-list" style="display: none;"></div>
+            </div>
+        </div>
+
+        <!-- Revoke User Tab -->
+        <div id="revoke-user" class="tab-content">
+            <div class="section">
+                <h2>Revoke User Certificate</h2>
+                <p>Revoke a user's certificate to remove their access to the network.</p>
+                
+                <div class="api-endpoint">DELETE /api/msp/users/revoke</div>
+                
+                <form id="revokeUserForm">
+                    <div class="form-group">
+                        <label for="revokeOrgName">Organization:</label>
+                        <select id="revokeOrgName" required>
+                            <option value="">Select Organization</option>
+                            <option value="iu-gov">IU Government (IUGovMSP)</option>
+                            <option value="iu-data">IU Data (IUDataMSP)</option>
+                            <option value="iu-service">IU Service (IUServiceMSP)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="revokeUserId">User ID to Revoke:</label>
+                        <input type="text" id="revokeUserId" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="revokeReason">Reason for Revocation:</label>
+                        <select id="revokeReason">
+                            <option value="unspecified">Unspecified</option>
+                            <option value="keyCompromise">Key Compromise</option>
+                            <option value="cACompromise">CA Compromise</option>
+                            <option value="affiliationChanged">Affiliation Changed</option>
+                            <option value="superseded">Superseded</option>
+                            <option value="cessationOfOperation">Cessation of Operation</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="danger">Revoke User</button>
+                </form>
+                <div id="revokeUserResult" class="result"></div>
+            </div>
+        </div>
+
+        <!-- Organizations Tab -->
+        <div id="organizations" class="tab-content">
+            <div class="section">
+                <h2>Network Organizations</h2>
+                <p>View all organizations in the Information Utility network.</p>
+                
+                <div class="api-endpoint">GET /api/msp/organizations</div>
+                
+                <button onclick="loadOrganizations()">Load Organizations</button>
+                
+                <div id="organizationsResult" class="result"></div>
+                <div id="organizationsList" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3000/api/msp';
+
+        // Tab functionality
+        function showTab(tabName) {
+            // Hide all tab contents
+            const tabContents = document.querySelectorAll('.tab-content');
+            tabContents.forEach(content => content.classList.remove('active'));
+            
+            // Remove active class from all tabs
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => tab.classList.remove('active'));
+            
+            // Show selected tab content
+            document.getElementById(tabName).classList.add('active');
+            
+            // Add active class to clicked tab
+            event.target.classList.add('active');
+        }
+
+        // Utility functions
+        function showResult(elementId, message, isSuccess = true) {
+            const resultDiv = document.getElementById(elementId);
+            resultDiv.className = `result ${isSuccess ? 'success' : 'error'}`;
+            resultDiv.textContent = message;
+            resultDiv.style.display = 'block';
+            
+            // Hide after 5 seconds
+            setTimeout(() => {
+                resultDiv.style.display = 'none';
+            }, 5000);
+        }
+
+        function showResultWithData(elementId, data, isSuccess = true) {
+            const resultDiv = document.getElementById(elementId);
+            resultDiv.className = `result ${isSuccess ? 'success' : 'error'}`;
+            resultDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+            resultDiv.style.display = 'block';
+        }
+
+        // API Functions
+        async function enrollAdmin() {
+            const orgName = document.getElementById('adminOrgName').value;
+            const adminUser = document.getElementById('adminUser').value;
+            const adminPassword = document.getElementById('adminPassword').value;
+
+            try {
+                const response = await fetch(`${API_BASE}/admin/enroll`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        orgName,
+                        adminUser,
+                        adminPassword
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('enrollAdminResult', `Admin ${adminUser} successfully enrolled for ${orgName}!`);
+                } else {
+                    showResult('enrollAdminResult', data.error || 'Failed to enroll admin', false);
+                }
+            } catch (error) {
+                showResult('enrollAdminResult', `Error: ${error.message}`, false);
+            }
+        }
+
+        async function registerUser() {
+            const orgName = document.getElementById('userOrgName').value;
+            const userId = document.getElementById('userId').value;
+            const userRole = document.getElementById('userRole').value;
+
+            try {
+                const response = await fetch(`${API_BASE}/users/register`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        orgName,
+                        userId,
+                        userRole
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('registerUserResult', `User ${userId} successfully registered for ${orgName}!`);
+                    document.getElementById('userId').value = ''; // Clear form
+                } else {
+                    showResult('registerUserResult', data.error || 'Failed to register user', false);
+                }
+            } catch (error) {
+                showResult('registerUserResult', `Error: ${error.message}`, false);
+            }
+        }
+
+        async function loadUsers() {
+            const orgName = document.getElementById('viewOrgName').value;
+            
+            if (!orgName) {
+                showResult('usersResult', 'Please select an organization', false);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/organizations/${orgName}/users`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayUsers(data.users, orgName);
+                    showResult('usersResult', `Loaded ${data.count} users for ${orgName}`);
+                } else {
+                    showResult('usersResult', data.error || 'Failed to load users', false);
+                }
+            } catch (error) {
+                showResult('usersResult', `Error: ${error.message}`, false);
+            }
+        }
+
+        async function loadAllOrganizations() {
+            try {
+                const response = await fetch(`${API_BASE}/organizations`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResultWithData('usersResult', data);
+                } else {
+                    showResult('usersResult', data.error || 'Failed to load organizations', false);
+                }
+            } catch (error) {
+                showResult('usersResult', `Error: ${error.message}`, false);
+            }
+        }
+
+        function displayUsers(users, orgName) {
+            const usersList = document.getElementById('usersList');
+            usersList.innerHTML = `<h3>Users in ${orgName}:</h3>`;
+            
+            if (users.length === 0) {
+                usersList.innerHTML += '<p>No users found</p>';
+            } else {
+                users.forEach(user => {
+                    const userDiv = document.createElement('div');
+                    userDiv.className = 'user-item';
+                    userDiv.innerHTML = `
+                        <div>
+                            <strong>${user.userId}</strong> - ${user.role}
+                            <br><small>Enrolled: ${user.enrollmentDate}</small>
+                        </div>
+                        <button onclick="revokeUserQuick('${orgName}', '${user.userId}')" class="danger">Revoke</button>
+                    `;
+                    usersList.appendChild(userDiv);
+                });
+            }
+            
+            usersList.style.display = 'block';
+        }
+
+        async function revokeUser() {
+            const orgName = document.getElementById('revokeOrgName').value;
+            const userId = document.getElementById('revokeUserId').value;
+            const reason = document.getElementById('revokeReason').value;
+
+            try {
+                const response = await fetch(`${API_BASE}/users/revoke`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        orgName,
+                        userId,
+                        reason
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('revokeUserResult', `User ${userId} successfully revoked from ${orgName}!`);
+                    document.getElementById('revokeUserId').value = ''; // Clear form
+                } else {
+                    showResult('revokeUserResult', data.error || 'Failed to revoke user', false);
+                }
+            } catch (error) {
+                showResult('revokeUserResult', `Error: ${error.message}`, false);
+            }
+        }
+
+        async function revokeUserQuick(orgName, userId) {
+            if (!confirm(`Are you sure you want to revoke user ${userId} from ${orgName}?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/users/revoke`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        orgName,
+                        userId,
+                        reason: 'unspecified'
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    showResult('usersResult', `User ${userId} successfully revoked!`);
+                    // Reload users list
+                    loadUsers();
+                } else {
+                    showResult('usersResult', data.error || 'Failed to revoke user', false);
+                }
+            } catch (error) {
+                showResult('usersResult', `Error: ${error.message}`, false);
+            }
+        }
+
+        async function loadOrganizations() {
+            try {
+                const response = await fetch(`${API_BASE}/organizations`);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    displayOrganizations(data.organizations);
+                    showResult('organizationsResult', `Loaded ${data.count} organizations`);
+                } else {
+                    showResult('organizationsResult', data.error || 'Failed to load organizations', false);
+                }
+            } catch (error) {
+                showResult('organizationsResult', `Error: ${error.message}`, false);
+            }
+        }
+
+        function displayOrganizations(organizations) {
+            const orgsList = document.getElementById('organizationsList');
+            orgsList.innerHTML = '<h3>Network Organizations:</h3>';
+            
+            organizations.forEach(org => {
+                const orgDiv = document.createElement('div');
+                orgDiv.className = 'user-item';
+                orgDiv.innerHTML = `
+                    <div>
+                        <strong>${org.name}</strong> (${org.mspId})
+                        <br><small>${org.description}</small>
+                        <br><small>Domain: ${org.domain}</small>
+                    </div>
+                    <button onclick="loadOrgUsers('${org.name}')" class="success">View Users</button>
+                `;
+                orgsList.appendChild(orgDiv);
+            });
+            
+            orgsList.style.display = 'block';
+        }
+
+        function loadOrgUsers(orgName) {
+            document.getElementById('viewOrgName').value = orgName;
+            showTab('view-users');
+            loadUsers();
+        }
+
+        // Form event listeners
+        document.getElementById('enrollAdminForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            enrollAdmin();
+        });
+
+        document.getElementById('registerUserForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            registerUser();
+        });
+
+        document.getElementById('revokeUserForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            revokeUser();
+        });
+
+        // Load organizations on page load
+        window.addEventListener('load', function() {
+            loadOrganizations();
+        });
+    </script>
+</body>
+</html>

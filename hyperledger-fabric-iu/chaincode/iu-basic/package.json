@@ -1,0 +1,54 @@
+{
+  "name": "iu-basic",
+  "version": "1.0.0",
+  "description": "Information Utility Basic Chaincode - Node.js Implementation",
+  "main": "index.js",
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "scripts": {
+    "start": "fabric-chaincode-node start",
+    "test": "nyc mocha test --recursive",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "fabric-contract-api": "^2.5.8",
+    "fabric-shim": "^2.5.8"
+  },
+  "devDependencies": {
+    "chai": "^4.3.6",
+    "chai-as-promised": "^7.1.1",
+    "eslint": "^8.0.0",
+    "mocha": "^10.0.0",
+    "nyc": "^15.1.0",
+    "sinon": "^14.0.0",
+    "sinon-chai": "^3.7.0"
+  },
+  "nyc": {
+    "exclude": [
+      "coverage/**",
+      "test/**"
+    ],
+    "reporter": [
+      "text-summary",
+      "html"
+    ],
+    "all": true,
+    "check-coverage": true,
+    "statements": 80,
+    "branches": 80,
+    "functions": 80,
+    "lines": 80
+  },
+  "author": "Information Utility Team",
+  "license": "Apache-2.0",
+  "keywords": [
+    "hyperledger",
+    "fabric",
+    "chaincode",
+    "nodejs",
+    "information-utility",
+    "blockchain"
+  ]
+}

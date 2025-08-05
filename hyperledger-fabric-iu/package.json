@@ -1,0 +1,69 @@
+{
+  "name": "information-utility-hyperledger-fabric",
+  "version": "1.0.0",
+  "description": "Information Utility Blockchain Network built with Hyperledger Fabric and Node.js",
+  "main": "index.js",
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "scripts": {
+    "validate": "node validate-nodejs.js",
+    "start": "npm run start:network && npm run start:app",
+    "start:network": "cd network && ./network.sh up && ./network.sh channel && ./network.sh deployCC",
+    "start:app": "cd application && npm start",
+    "stop": "cd network && ./network.sh down",
+    "restart": "npm run stop && npm run start",
+    "test": "npm run test:chaincode && npm run test:app",
+    "test:chaincode": "cd chaincode/iu-basic && npm test",
+    "test:app": "cd application && npm test",
+    "lint": "npm run lint:chaincode && npm run lint:app",
+    "lint:chaincode": "cd chaincode/iu-basic && npm run lint",
+    "lint:app": "cd application && eslint .",
+    "install:all": "npm run install:chaincode && npm run install:app",
+    "install:chaincode": "cd chaincode/iu-basic && npm install",
+    "install:app": "cd application && npm install",
+    "setup": "chmod +x setup.sh && ./setup.sh",
+    "clean": "cd network && ./network.sh down && docker system prune -f",
+    "logs": "docker-compose -f network/docker-compose.yaml logs -f",
+    "status": "docker ps --filter 'label=service=hyperledger-fabric'"
+  },
+  "workspaces": [
+    "chaincode/iu-basic",
+    "application"
+  ],
+  "devDependencies": {
+    "eslint": "^8.0.0",
+    "typescript": "^4.9.0",
+    "concurrently": "^7.6.0",
+    "nodemon": "^2.0.20"
+  },
+  "keywords": [
+    "hyperledger",
+    "fabric",
+    "blockchain",
+    "nodejs",
+    "information-utility",
+    "smart-contracts",
+    "chaincode",
+    "identity-management",
+    "data-verification",
+    "government",
+    "digital-identity"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-org/information-utility-fabric.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-org/information-utility-fabric/issues"
+  },
+  "homepage": "https://github.com/your-org/information-utility-fabric#readme",
+  "author": "Information Utility Development Team",
+  "license": "Apache-2.0",
+  "private": true,
+  "directories": {
+    "doc": "docs",
+    "test": "test"
+  }
+}

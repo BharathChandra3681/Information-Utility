@@ -1,0 +1,49 @@
+OrdererOrgs:
+  - Name: Orderer
+    Domain: iu-network.com
+    EnableNodeOUs: false
+    Specs:
+      - Hostname: orderer
+
+PeerOrgs:
+  - Name: Creditor
+    Domain: creditor.iu-network.com
+    EnableNodeOUs: true
+    Template:
+      Count: 1
+    Users:
+      Count: 3
+    CA:
+      Country: IN
+      Province: Maharashtra
+      Locality: Mumbai
+      OrganizationalUnit: Financial Institution
+      StreetAddress: 123 Finance Street
+
+  - Name: Debtor
+    Domain: debtor.iu-network.com
+    EnableNodeOUs: true
+    Template:
+      Count: 1
+    Users:
+      Count: 3
+    CA:
+      Country: IN
+      Province: Karnataka
+      Locality: Bangalore
+      OrganizationalUnit: Individual/Corporate Borrower
+      StreetAddress: 456 Borrower Lane
+
+  - Name: Admin
+    Domain: admin.iu-network.com
+    EnableNodeOUs: true
+    Template:
+      Count: 1
+    Users:
+      Count: 2
+    CA:
+      Country: IN
+      Province: Delhi
+      Locality: New Delhi
+      OrganizationalUnit: Regulatory Authority
+      StreetAddress: 789 Government Complex
