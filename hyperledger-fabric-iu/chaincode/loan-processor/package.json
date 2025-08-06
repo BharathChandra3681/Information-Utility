@@ -1,0 +1,23 @@
+{
+  "name": "loan-processor",
+  "version": "1.0.0",
+  "description": "Financial Information Utility - Loan Processing Chaincode",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "fabric-contract-api": "^2.5.0",
+    "fabric-shim": "^2.5.0",
+    "crypto": "^1.0.1"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "keywords": [
+    "hyperledger-fabric",
+    "chaincode",
+    "loan-processing",
+    "financial-utility"
+  ]
+}

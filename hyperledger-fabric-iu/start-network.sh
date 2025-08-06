@@ -44,6 +44,11 @@ generateCrypto() {
     
     # Generate crypto material using cryptogen
     echo "Generating certificates using cryptogen tool..."
+    if [ ! -f "./network/bin/cryptogen" ]; then
+        echo "Error: cryptogen binary not found at ./network/bin/cryptogen"
+        exit 1
+    fi
+    
     ./network/bin/cryptogen generate --config=./network/crypto-config.yaml --output="network/organizations"
     
     if [ $? -ne 0 ]; then
@@ -60,16 +65,39 @@ generateChannelArtifacts() {
     
     export FABRIC_CFG_PATH=${PWD}/network
     
+    # Verify configtxgen binary exists
+    if [ ! -f "./network/bin/configtxgen" ]; then
+        echo "Error: configtxgen binary not found at ./network/bin/configtxgen"
+        exit 1
+    fi
+    
+    # Verify configtx.yaml exists
+    if [ ! -f "./network/configtx.yaml" ]; then
+        echo "Error: configtx.yaml not found at ./network/configtx.yaml"
+        exit 1
+    fi
+    
+    echo "FABRIC_CFG_PATH: $FABRIC_CFG_PATH"
+    
     # Generate genesis block for orderer
     echo "Generating genesis block..."
-    ./network/bin/configtxgen -profile IUNetworkOrdererGenesis -channelID system-channel -outputBlock ./network/channel-artifacts/genesis.block
+    if ! ./network/bin/configtxgen -profile IUNetworkOrdererGenesis -channelID system-channel -outputBlock ./network/channel-artifacts/genesis.block; then
+        echo "Error: Failed to generate genesis block"
+        exit 1
+    fi
     
     # Generate channel configuration transactions
     echo "Generating financial operations channel transaction..."
-    ./network/bin/configtxgen -profile FinancialOperationsChannel -outputCreateChannelTx ./network/channel-artifacts/financial-operations-channel.tx -channelID financial-operations-channel
+    if ! ./network/bin/configtxgen -profile FinancialOperationsChannel -outputCreateChannelTx ./network/channel-artifacts/financial-operations-channel.tx -channelID financial-operations-channel; then
+        echo "Error: Failed to generate financial operations channel transaction"
+        exit 1
+    fi
     
     echo "Generating audit compliance channel transaction..."
-    ./network/bin/configtxgen -profile AuditComplianceChannel -outputCreateChannelTx ./network/channel-artifacts/audit-compliance-channel.tx -channelID audit-compliance-channel
+    if ! ./network/bin/configtxgen -profile AuditComplianceChannel -outputCreateChannelTx ./network/channel-artifacts/audit-compliance-channel.tx -channelID audit-compliance-channel; then
+        echo "Error: Failed to generate audit compliance channel transaction"
+        exit 1
+    fi
     
     # Generate anchor peer transactions
     echo "Generating anchor peer transactions..."

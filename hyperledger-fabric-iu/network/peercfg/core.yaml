@@ -1,0 +1,317 @@
+# Copyright IBM Corp. All Rights Reserved.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+###############################################################################
+#
+#    Peer section
+#
+###############################################################################
+peer:
+    # The Peer id is used for identifying this Peer instance.
+    id: peer0.creditor.iu-network.com
+
+    # The networkId allows for logical separation of networks
+    networkId: iu-network
+
+    # The Address at local network interface this Peer will listen on.
+    # By default, it will listen on all network interfaces
+    listenAddress: 0.0.0.0:7051
+
+    # Settings for the Peer's gateway server.
+    gateway:
+        # Whether the gateway is enabled for this peer.
+        enabled: true
+        # endorsementTimeout is the duration the gateway waits for a response
+        # from other endorsing peers before returning a timeout error to the client.
+        endorsementTimeout: 30s
+        # dialTimeout is the duration the gateway waits for a connection
+        # to other network nodes.
+        dialTimeout: 2m
+        # readTimeout is the duration the gateway waits for a response from
+        # other network nodes.
+        readTimeout: 5m
+        # writeTimeout is the duration the gateway waits to write a response to
+        # a client.
+        writeTimeout: 2m
+
+    # Gossip related configuration
+    gossip:
+        # Bootstrap set of peers used for gossip membership
+        bootstrap: peer0.creditor.iu-network.com:7051
+
+        # Should the peer attempt to use an internet protocol
+        useLeaderElection: false
+        orgLeader: true
+
+        # Endpoint that is published to peers outside of the organization.
+        externalEndpoint: peer0.creditor.iu-network.com:7051
+
+        # Settings for point to point connections.
+        endpoint: peer0.creditor.iu-network.com:7051
+
+    # TLS Settings for p2p communications
+    tls:
+        # Require server-side TLS
+        enabled: true
+        # Require client certificates / mutual TLS.
+        clientAuthRequired: false
+        # X.509 certificate used for TLS server
+        cert:
+            file: /etc/hyperledger/fabric/tls/server.crt
+        # Private key used for TLS server
+        key:
+            file: /etc/hyperledger/fabric/tls/server.key
+        # Trusted root certificate chain for TLS server
+        rootcert:
+            file: /etc/hyperledger/fabric/tls/ca.crt
+
+    # If mutual TLS is enabled, clientRootCAs.files contains a list of additional root certificates
+    # used for verifying certificates of client connections.
+    # It is not required to be set, but can be used to add additional entries to the root CAs.
+    # clientRootCAs:
+    #     files:
+    #       - clientRootCA.crt
+
+    # Path on the file system where peer will store data
+    fileSystemPath: /var/hyperledger/production
+
+    # BCCSP configuration
+    BCCSP:
+        Default: SW
+        SW:
+            Hash: SHA2
+            Security: 256
+            # Location of Key Store
+            FileKeyStore:
+                # KeyStore: /var/hyperledger/production
+
+    # Path on the file system where peer will find MSP local configurations
+    mspConfigPath: /etc/hyperledger/fabric/msp
+
+    # Identifier of the local MSP
+    # ----!!!!IMPORTANT!!!-!!!!IMPORTANT!!!-!!!!IMPORTANT!!!!----
+    # Deployers need to change the value of the localMspId string.
+    # In particular, the name of the local MSP ID of a peer needs
+    # to match the name of one of the MSPs in each of the channel
+    # that this peer is a member of. Otherwise this peer's messages
+    # will not be identified as valid by other nodes.
+    localMspId: CreditorMSP
+
+    # CLI client config
+    client:
+        # connection timeout
+        connTimeout: 3s
+
+    # Delivery client configuration
+    deliveryclient:
+        # connection timeout
+        connTimeout: 3s
+        # delivery client retry policy parameters
+        retryPolicy:
+            # initial retry delay
+            initialDelay: 500ms
+            # maximum retry delay
+            maxDelay: 5s
+            # delivery client retry delay multiplier
+            delayMultiplier: 1.1
+            # stop retrying attempts after this many failures
+            maxAttempts: 5
+
+    # Type for the local MSP - by default it's of type bccsp
+    localMspType: bccsp
+
+    # Used with Go profiling tools only in none production environment.
+    profile:
+        enabled: false
+        listenAddress: 0.0.0.0:6060
+
+    # Operations configuration
+    operations:
+        # host and port for the operations server
+        listenAddress: 0.0.0.0:9444
+
+        # TLS configuration for the operations endpoint
+        tls:
+            # TLS enabled
+            enabled: false
+
+    # Metrics configuration
+    metrics:
+        # metrics provider is one of statsd, prometheus, or disabled
+        provider: prometheus
+
+###############################################################################
+#
+#    VM section
+#
+###############################################################################
+vm:
+    # Endpoint of the vm management system.  For docker can be one of the following in general
+    # unix:///var/run/docker.sock
+    # http://localhost:2375
+    # https://localhost:2376
+    endpoint: unix:///host/var/run/docker.sock
+
+    # settings for docker vms
+    docker:
+        tls:
+            enabled: false
+        # Enables/disables the start of containers having privileged access
+        attachStdout: false
+
+        # Parameters on creating docker container.
+        # Container may have at most 1024 hosts entries.
+        hostConfig:
+            NetworkMode: fabric_iu_network
+            Dns:
+               # - 192.168.1.1
+            LogConfig:
+                Type: json-file
+                Config:
+                    max-size: "50m"
+                    max-file: "5"
+            Memory: 2147483648
+
+###############################################################################
+#
+#    Chaincode section
+#
+###############################################################################
+chaincode:
+    # The id is used by the Chaincode stub to register the executing Chaincode
+    # ID with the Peer and is generally supplied through ENV variables
+    # the `path` form of ID is provided when running the Chaincode outside
+    # a container and is generally supplied through ENV variables
+    id:
+        path:
+        name:
+
+    # Generic builder environment, suitable for most chaincode types
+    builder: $(DOCKER_NS)/fabric-ccenv:$(TWO_DIGIT_VERSION)
+
+    # Enables/disables force pulling of the base docker images (listed below)
+    # during user chaincode instantiation.
+    pull: false
+
+    # golang will never need more than baseos
+    golang:
+        runtime: $(DOCKER_NS)/fabric-baseos:$(TWO_DIGIT_VERSION)
+
+        # whether or not golang chaincode should be linked dynamically
+        dynamicLink: false
+
+    # car may need more facilities (JVM, etc) in the future as the catalog
+    # of platforms are expanded.  For now, we can just use baseos
+    car:
+        runtime: $(DOCKER_NS)/fabric-baseos:$(TWO_DIGIT_VERSION)
+
+    # java will need the java runtime and probably
+    # more facilities (JVM, etc) in the future as the catalog
+    # of platforms are expanded.  For now, we can just use baseos
+    java:
+        runtime: $(DOCKER_NS)/fabric-javaenv:$(TWO_DIGIT_VERSION)
+
+    # List of directories to treat as external builders and launchers for
+    # chaincode. The external builder detection processing will iterate over the
+    # builders in the order specified below.
+    externalBuilders: []
+
+    # The maximum duration to wait for the chaincode build and install process
+    # to complete.
+    installTimeout: 300s
+
+    # Timeout duration for starting up a chaincode container and waiting for
+    # Register to come through.
+    startuptimeout: 300s
+
+    # Timeout duration for Invoke and Init calls to prevent runaway.
+    # This timeout is used by all chaincodes in all the channels, including
+    # system chaincodes.
+    executetimeout: 30s
+
+    # There are 2 modes: "dev" and "net".
+    # In dev mode, user runs the chaincode after starting peer from
+    # command line. This simplifies the development environment and the time
+    # it takes to update and test the chaincode.
+    # In net mode a docker container is launched to execute the chaincode.
+    mode: net
+
+    # keepalive in seconds. In situations where the communication goes through a
+    # proxy that does not support keep-alive, this parameter will maintain connection
+    # between peer and chaincode.
+    # A value <= 0 turns keepalive off
+    keepalive: 0
+
+    # enabled system chaincodes
+    system:
+        _lifecycle: enable
+        cscc: enable
+        lscc: enable
+        escc: enable
+        vscc: enable
+        qscc: enable
+
+###############################################################################
+#
+#    Ledger section - ledger configuration encompasses both the blockchain
+#    and the state
+#
+###############################################################################
+ledger:
+
+  blockchain:
+
+  state:
+    # stateDatabase - options are "goleveldb", "CouchDB"
+    # goleveldb - default state database stored in goleveldb.
+    # CouchDB - store state database in CouchDB
+    stateDatabase: goleveldb
+    # Limit on the number of records to return per query
+    totalQueryLimit: 100000
+    couchDBConfig:
+       # It is recommended to run CouchDB on the same server as the peer, and
+       # not map the CouchDB container port to a server port in docker-compose.
+       # Otherwise proper security must be provided on the connection between
+       # CouchDB client and server.
+       couchDBAddress: 127.0.0.1:5984
+       # This username must have read and write authority on CouchDB
+       username:
+       # The password is recommended to pass as an environment variable
+       # during start up (eg CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD).
+       # If it is stored here, the file must be access control protected
+       # to prevent unintended users from discovering the password.
+       password:
+       # Number of retries for CouchDB errors
+       maxRetries: 3
+       # Number of retries for CouchDB errors during peer startup.
+       # The delay between retries doubles for each attempt.
+       # Default of 10 retries results in 11 attempts over 2 minutes.
+       maxRetriesOnStartup: 10
+       # CouchDB request timeout (unit: duration, e.g. 20s)
+       requestTimeout: 35s
+       # Limit on the number of records per each CouchDB query
+       # Note that chaincode queries are only bound by totalQueryLimit.
+       # Internally the chaincode may execute multiple CouchDB queries,
+       # each of size internalQueryLimit.
+       internalQueryLimit: 1000
+       # Limit on the number of records per CouchDB bulk update batch
+       maxBatchUpdateSize: 1000
+       # Create the _global_changes system database
+       # This is optional.  Creating the global changes database will require
+       # additional system resources to track changes and perform cleanup.
+       # Defaults to false.
+       createGlobalChangesDB: false
+       # CacheSize denotes the maximum mega bytes (MB) to be allocated for the in-memory state
+       # cache. Note that CacheSize needs to be a multiple of 32 MB. If it is not a multiple
+       # of 32 MB, the peer would round the size to the next multiple of 32 MB.
+       # To disable the cache, 0 MB needs to be assigned to the cacheSize.
+       cacheSize: 64
+
+  history:
+    # enableHistoryDatabase - options are true or false
+    # Indicates if the history of key updates should be stored.
+    # All history 'index' will be stored in goleveldb, regardless if using
+    # CouchDB or alternate database for the state.
+    enableHistoryDatabase: true

@@ -1,0 +1,107 @@
+# Hyperledger Fabric Orderer Configuration
+
+# General configuration
+General:
+  # Listen address
+  ListenAddress: 0.0.0.0
+  
+  # Listen port
+  ListenPort: 7050
+  
+  # TLS configuration
+  TLS:
+    Enabled: true
+    PrivateKey: /var/hyperledger/orderer/tls/server.key
+    Certificate: /var/hyperledger/orderer/tls/server.crt
+    RootCAs:
+      - /var/hyperledger/orderer/tls/ca.crt
+    ClientAuthRequired: false
+    ClientRootCAs: []
+
+  # Keepalive settings
+  Keepalive:
+    ServerMinInterval: 60s
+    ServerInterval: 7200s
+    ServerTimeout: 20s
+
+  # Connection timeout
+  ConnectionTimeout: 0s
+
+  # Genesis method
+  GenesisMethod: none
+  GenesisFile: 
+
+  # Bootstrap method  
+  BootstrapMethod: none
+  BootstrapFile: /etc/hyperledger/fabric/genesisblock
+
+  # Local MSP configuration
+  LocalMSPDir: /var/hyperledger/orderer/msp
+  LocalMSPID: OrdererMSP
+
+  # Profile configuration
+  Profile:
+    Enabled: false
+    Address: 0.0.0.0:6060
+
+  # BCCSP (Blockchain Crypto Service Provider) configuration
+  BCCSP:
+    Default: SW
+    SW:
+      Hash: SHA2
+      Security: 256
+      FileKeyStore:
+        KeyStorePath: 
+
+  # Authentication configuration
+  Authentication:
+    TimeWindow: 15m
+
+# File ledger configuration
+FileLedger:
+  Location: /var/hyperledger/production/orderer
+  Prefix: hyperledger-fabric-ordererledger
+
+# Consensus configuration
+Consensus:
+  # WAL directory for raft consensus
+  WALDir: /var/hyperledger/production/orderer/etcdraft/wal
+  # Snapshot directory for raft consensus  
+  SnapDir: /var/hyperledger/production/orderer/etcdraft/snapshot
+
+# Channel participation
+ChannelParticipation:
+  Enabled: true
+  MaxRequestBodySize: 1048576
+
+# Admin service configuration
+Admin:
+  ListenAddress: 0.0.0.0:7053
+  TLS:
+    Enabled: true
+    Certificate: /var/hyperledger/orderer/tls/server.crt
+    PrivateKey: /var/hyperledger/orderer/tls/server.key
+    RootCAs:
+      - /var/hyperledger/orderer/tls/ca.crt
+    ClientAuthRequired: true
+    ClientRootCAs:
+      - /var/hyperledger/orderer/tls/ca.crt
+
+# Operations service configuration  
+Operations:
+  ListenAddress: orderer.iu-network.com:9443
+  TLS:
+    Enabled: false
+    Certificate: 
+    PrivateKey: 
+    ClientAuthRequired: false
+    ClientRootCAs: []
+
+# Metrics configuration
+Metrics:
+  Provider: prometheus
+  Statsd:
+    Network: udp
+    Address: 127.0.0.1:8125
+    WriteInterval: 30s
+    Prefix: 

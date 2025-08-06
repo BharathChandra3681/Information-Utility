@@ -1,5 +1,3 @@
-version: '3.7'
-
 volumes:
   orderer.iu-network.com:
   peer0.creditor.iu-network.com:
@@ -28,7 +26,7 @@ services:
       - "17054:17054"
     command: sh -c 'fabric-ca-server start -b admin:adminpw -d'
     volumes:
-      - ../organizations/fabric-ca/creditor:/etc/hyperledger/fabric-ca-server
+      - ./organizations/fabric-ca/creditor:/etc/hyperledger/fabric-ca-server
     networks:
       - iu-network
 
@@ -48,7 +46,7 @@ services:
       - "18054:18054"
     command: sh -c 'fabric-ca-server start -b admin:adminpw -d'
     volumes:
-      - ../organizations/fabric-ca/debtor:/etc/hyperledger/fabric-ca-server
+      - ./organizations/fabric-ca/debtor:/etc/hyperledger/fabric-ca-server
     networks:
       - iu-network
 
@@ -68,7 +66,7 @@ services:
       - "19054:19054"
     command: sh -c 'fabric-ca-server start -b admin:adminpw -d'
     volumes:
-      - ../organizations/fabric-ca/admin:/etc/hyperledger/fabric-ca-server
+      - ./organizations/fabric-ca/admin:/etc/hyperledger/fabric-ca-server
     networks:
       - iu-network
   orderer.iu-network.com:
@@ -77,6 +75,7 @@ services:
     labels:
       service: hyperledger-fabric
     environment:
+      - FABRIC_CFG_PATH=/etc/hyperledger/peercfg
       - FABRIC_LOGGING_SPEC=INFO
       - ORDERER_GENERAL_LISTENADDRESS=0.0.0.0
       - ORDERER_GENERAL_LISTENPORT=7050
@@ -102,8 +101,9 @@ services:
     working_dir: /opt/gopath/src/github.com/hyperledger/fabric
     command: orderer
     volumes:
-      - ../organizations/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/msp:/var/hyperledger/orderer/msp
-      - ../organizations/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/tls/:/var/hyperledger/orderer/tls
+      - ./orderer.yaml:/etc/hyperledger/peercfg/orderer.yaml
+      - ./organizations/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/msp:/var/hyperledger/orderer/msp
+      - ./organizations/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/tls/:/var/hyperledger/orderer/tls
       - orderer.iu-network.com:/var/hyperledger/production/orderer
     ports:
       - 7050:7050
@@ -144,7 +144,10 @@ services:
       - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=fabric_iu_network
     volumes:
       - /var/run/docker.sock:/host/var/run/docker.sock
-      - ../organizations/peerOrganizations/creditor.iu-network.com/peers/peer0.creditor.iu-network.com:/etc/hyperledger/fabric
+      - ./organizations/peerOrganizations/creditor.iu-network.com/peers/peer0.creditor.iu-network.com/msp:/etc/hyperledger/fabric/msp
+      - ./organizations/peerOrganizations/creditor.iu-network.com/peers/peer0.creditor.iu-network.com/tls:/etc/hyperledger/fabric/tls
+      - ./organizations/peerOrganizations/creditor.iu-network.com/users:/etc/hyperledger/fabric/users
+      - ./core.yaml:/etc/hyperledger/peercfg/core.yaml
       - peer0.creditor.iu-network.com:/var/hyperledger/production
     working_dir: /root
     command: peer node start
@@ -186,7 +189,10 @@ services:
       - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=fabric_iu_network
     volumes:
       - /var/run/docker.sock:/host/var/run/docker.sock
-      - ../organizations/peerOrganizations/debtor.iu-network.com/peers/peer0.debtor.iu-network.com:/etc/hyperledger/fabric
+      - ./organizations/peerOrganizations/debtor.iu-network.com/peers/peer0.debtor.iu-network.com/msp:/etc/hyperledger/fabric/msp
+      - ./organizations/peerOrganizations/debtor.iu-network.com/peers/peer0.debtor.iu-network.com/tls:/etc/hyperledger/fabric/tls
+      - ./organizations/peerOrganizations/debtor.iu-network.com/users:/etc/hyperledger/fabric/users
+      - ./core.yaml:/etc/hyperledger/peercfg/core.yaml
       - peer0.debtor.iu-network.com:/var/hyperledger/production
     working_dir: /root
     command: peer node start
@@ -228,7 +234,10 @@ services:
       - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=fabric_iu_network
     volumes:
       - /var/run/docker.sock:/host/var/run/docker.sock
-      - ../organizations/peerOrganizations/admin.iu-network.com/peers/peer0.admin.iu-network.com:/etc/hyperledger/fabric
+      - ./organizations/peerOrganizations/admin.iu-network.com/peers/peer0.admin.iu-network.com/msp:/etc/hyperledger/fabric/msp
+      - ./organizations/peerOrganizations/admin.iu-network.com/peers/peer0.admin.iu-network.com/tls:/etc/hyperledger/fabric/tls
+      - ./organizations/peerOrganizations/admin.iu-network.com/users:/etc/hyperledger/fabric/users
+      - ./core.yaml:/etc/hyperledger/peercfg/core.yaml
       - peer0.admin.iu-network.com:/var/hyperledger/production
     working_dir: /root
     command: peer node start
@@ -263,11 +272,11 @@ services:
     command: /bin/bash
     volumes:
       - /var/run/docker.sock:/host/var/run/docker.sock
-      - ../organizations:/opt/gopath/src/github.com/hyperledger/fabric/peer/organizations
-      - ../scripts:/opt/gopath/src/github.com/hyperledger/fabric/peer/scripts/
-      - ../../chaincode:/opt/gopath/src/github.com/chaincode
-      - ./configtx.yaml:/etc/hyperledger/peercfg/configtx.yaml
-      - ./channel-artifacts:/opt/gopath/src/github.com/hyperledger/fabric/peer/channel-artifacts
+      - ./network/organizations:/opt/gopath/src/github.com/hyperledger/fabric/peer/organizations
+      - ./scripts:/opt/gopath/src/github.com/hyperledger/fabric/peer/scripts/
+      - ./chaincode:/opt/gopath/src/github.com/chaincode
+      - ./network/configtx.yaml:/etc/hyperledger/peercfg/configtx.yaml
+      - ./network/channel-artifacts:/opt/gopath/src/github.com/hyperledger/fabric/peer/channel-artifacts
     depends_on:
       - peer0.creditor.iu-network.com
       - peer0.debtor.iu-network.com
