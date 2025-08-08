@@ -2,7 +2,7 @@ Organizations:
     - &OrdererOrg
         Name: OrdererOrg
         ID: OrdererMSP
-        MSPDir: organizations/ordererOrganizations/iu-network.com/msp
+        MSPDir: crypto-config/ordererOrganizations/iu-network.com/msp
         Policies:
             Readers:
                 Type: Signature
@@ -19,7 +19,7 @@ Organizations:
     - &CreditorOrg
         Name: CreditorMSP
         ID: CreditorMSP
-        MSPDir: organizations/peerOrganizations/creditor.iu-network.com/msp
+        MSPDir: crypto-config/peerOrganizations/creditor.iu-network.com/msp
         Policies:
             Readers:
                 Type: Signature
@@ -40,7 +40,7 @@ Organizations:
     - &DebtorOrg
         Name: DebtorMSP
         ID: DebtorMSP
-        MSPDir: organizations/peerOrganizations/debtor.iu-network.com/msp
+        MSPDir: crypto-config/peerOrganizations/debtor.iu-network.com/msp
         Policies:
             Readers:
                 Type: Signature
@@ -61,7 +61,7 @@ Organizations:
     - &AdminOrg
         Name: AdminMSP
         ID: AdminMSP
-        MSPDir: organizations/peerOrganizations/admin.iu-network.com/msp
+        MSPDir: crypto-config/peerOrganizations/admin.iu-network.com/msp
         Policies:
             Readers:
                 Type: Signature
@@ -85,7 +85,7 @@ Capabilities:
     Orderer: &OrdererCapabilities
         V2_0: true
     Application: &ApplicationCapabilities
-        V2_0: true
+        V2_5: true
 
 Application: &ApplicationDefaults
     Organizations:
@@ -116,8 +116,8 @@ Orderer: &OrdererDefaults
         Consenters:
         - Host: orderer.iu-network.com
           Port: 7050
-          ClientTLSCert: organizations/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/tls/server.crt
-          ServerTLSCert: organizations/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/tls/server.crt
+          ClientTLSCert: crypto-config/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/tls/server.crt
+          ServerTLSCert: crypto-config/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/tls/server.crt
     BatchTimeout: 2s
     BatchSize:
         MaxMessageCount: 10
@@ -169,8 +169,13 @@ Profiles:
                     - *AdminOrg
 
     FinancialOperationsChannel:
-        Consortium: IUConsortium
         <<: *ChannelDefaults
+        Orderer:
+            <<: *OrdererDefaults
+            Organizations:
+                - *OrdererOrg
+            Capabilities:
+                <<: *OrdererCapabilities
         Application:
             <<: *ApplicationDefaults
             Organizations:
@@ -181,8 +186,13 @@ Profiles:
                 <<: *ApplicationCapabilities
 
     AuditComplianceChannel:
-        Consortium: IUConsortium
         <<: *ChannelDefaults
+        Orderer:
+            <<: *OrdererDefaults
+            Organizations:
+                - *OrdererOrg
+            Capabilities:
+                <<: *OrdererCapabilities
         Application:
             <<: *ApplicationDefaults
             Organizations:

@@ -1,7 +1,7 @@
 OrdererOrgs:
   - Name: Orderer
     Domain: iu-network.com
-    EnableNodeOUs: false
+    EnableNodeOUs: true
     Specs:
       - Hostname: orderer
 

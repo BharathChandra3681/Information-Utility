@@ -102,8 +102,8 @@ services:
     command: orderer
     volumes:
       - ./orderer.yaml:/etc/hyperledger/peercfg/orderer.yaml
-      - ./organizations/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/msp:/var/hyperledger/orderer/msp
-      - ./organizations/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/tls/:/var/hyperledger/orderer/tls
+      - ./crypto-config/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/msp:/var/hyperledger/orderer/msp
+      - ./crypto-config/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/tls/:/var/hyperledger/orderer/tls
       - orderer.iu-network.com:/var/hyperledger/production/orderer
     ports:
       - 7050:7050
@@ -144,9 +144,9 @@ services:
       - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=fabric_iu_network
     volumes:
       - /var/run/docker.sock:/host/var/run/docker.sock
-      - ./organizations/peerOrganizations/creditor.iu-network.com/peers/peer0.creditor.iu-network.com/msp:/etc/hyperledger/fabric/msp
-      - ./organizations/peerOrganizations/creditor.iu-network.com/peers/peer0.creditor.iu-network.com/tls:/etc/hyperledger/fabric/tls
-      - ./organizations/peerOrganizations/creditor.iu-network.com/users:/etc/hyperledger/fabric/users
+      - ./crypto-config/peerOrganizations/creditor.iu-network.com/peers/peer0.creditor.iu-network.com/msp:/etc/hyperledger/fabric/msp
+      - ./crypto-config/peerOrganizations/creditor.iu-network.com/peers/peer0.creditor.iu-network.com/tls:/etc/hyperledger/fabric/tls
+      - ./crypto-config/peerOrganizations/creditor.iu-network.com/users:/etc/hyperledger/fabric/users
       - ./core.yaml:/etc/hyperledger/peercfg/core.yaml
       - peer0.creditor.iu-network.com:/var/hyperledger/production
     working_dir: /root
@@ -189,9 +189,9 @@ services:
       - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=fabric_iu_network
     volumes:
       - /var/run/docker.sock:/host/var/run/docker.sock
-      - ./organizations/peerOrganizations/debtor.iu-network.com/peers/peer0.debtor.iu-network.com/msp:/etc/hyperledger/fabric/msp
-      - ./organizations/peerOrganizations/debtor.iu-network.com/peers/peer0.debtor.iu-network.com/tls:/etc/hyperledger/fabric/tls
-      - ./organizations/peerOrganizations/debtor.iu-network.com/users:/etc/hyperledger/fabric/users
+      - ./crypto-config/peerOrganizations/debtor.iu-network.com/peers/peer0.debtor.iu-network.com/msp:/etc/hyperledger/fabric/msp
+      - ./crypto-config/peerOrganizations/debtor.iu-network.com/peers/peer0.debtor.iu-network.com/tls:/etc/hyperledger/fabric/tls
+      - ./crypto-config/peerOrganizations/debtor.iu-network.com/users:/etc/hyperledger/fabric/users
       - ./core.yaml:/etc/hyperledger/peercfg/core.yaml
       - peer0.debtor.iu-network.com:/var/hyperledger/production
     working_dir: /root
@@ -234,9 +234,9 @@ services:
       - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=fabric_iu_network
     volumes:
       - /var/run/docker.sock:/host/var/run/docker.sock
-      - ./organizations/peerOrganizations/admin.iu-network.com/peers/peer0.admin.iu-network.com/msp:/etc/hyperledger/fabric/msp
-      - ./organizations/peerOrganizations/admin.iu-network.com/peers/peer0.admin.iu-network.com/tls:/etc/hyperledger/fabric/tls
-      - ./organizations/peerOrganizations/admin.iu-network.com/users:/etc/hyperledger/fabric/users
+      - ./crypto-config/peerOrganizations/admin.iu-network.com/peers/peer0.admin.iu-network.com/msp:/etc/hyperledger/fabric/msp
+      - ./crypto-config/peerOrganizations/admin.iu-network.com/peers/peer0.admin.iu-network.com/tls:/etc/hyperledger/fabric/tls
+      - ./crypto-config/peerOrganizations/admin.iu-network.com/users:/etc/hyperledger/fabric/users
       - ./core.yaml:/etc/hyperledger/peercfg/core.yaml
       - peer0.admin.iu-network.com:/var/hyperledger/production
     working_dir: /root
