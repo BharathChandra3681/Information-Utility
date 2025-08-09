@@ -4,7 +4,7 @@
   "description": "Information Utility Client Application",
   "main": "app.js",
   "scripts": {
-    "start": "node app.js",
+    "start": "node -r dotenv/config app.js",
     "test": "node test.js"
   },
   "dependencies": {
@@ -14,7 +14,13 @@
     "fabric-network": "^2.2.20",
     "fabric-contract-api": "^2.5.8",
     "fabric-ca-client": "^2.2.20",
-    "winston": "^3.11.0"
+    "winston": "^3.11.0",
+    "pg": "^8.11.3",
+    "multer": "^1.4.5-lts.1",
+    "dotenv": "^16.4.5",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "uuid": "^9.0.1"
   },
   "author": "Information Utility Team",
   "license": "Apache-2.0"

@@ -1,8 +1,10 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/hyperledger/fabric-contract-api-go/contractapi"
@@ -51,6 +53,31 @@ type AuditRecord struct {
 	Timestamp        time.Time `json:"timestamp"`
 	Details          string    `json:"details"`
 	ComplianceStatus string    `json:"complianceStatus"`
+}
+
+// Document represents an uploaded document metadata and integrity hash
+type Document struct {
+	DocID      string    `json:"docId"`
+	LoanID     string    `json:"loanId"`
+	Hash       string    `json:"hash"`
+	Type       string    `json:"type"`
+	Mime       string    `json:"mime"`
+	Size       int64     `json:"size"`
+	OwnerOrg   string    `json:"ownerOrg"`
+	UploadedAt time.Time `json:"uploadedAt"`
+	Status     string    `json:"status"` // SUBMITTED, VERIFIED, REJECTED
+	Metadata   string    `json:"metadata"`
+}
+
+// KYCReference stores public reference and hash of private KYC Form-C
+type KYCReference struct {
+	KYCID     string    `json:"kycId"`
+	LoanID    string    `json:"loanId"`
+	PartyID   string    `json:"partyId"`
+	Hash      string    `json:"hash"`
+	Status    string    `json:"status"` // SUBMITTED, APPROVED, REJECTED
+	Timestamp time.Time `json:"timestamp"`
+	Remarks   string    `json:"remarks"`
 }
 
 // InitLedger adds a base set of data to the ledger
@@ -390,6 +417,187 @@ func (s *IUContract) GetTransactionHistory(ctx contractapi.TransactionContextInt
 	}
 
 	return string(historyJSON), nil
+}
+
+func getMSPID(ctx contractapi.TransactionContextInterface) (string, error) {
+	id := ctx.GetClientIdentity()
+	mspid, err := id.GetMSPID()
+	if err != nil {
+		return "", fmt.Errorf("failed to get MSPID: %v", err)
+	}
+	return mspid, nil
+}
+
+// SubmitLoanDocument records document metadata and integrity hash on-ledger
+func (s *IUContract) SubmitLoanDocument(ctx contractapi.TransactionContextInterface, loanID, docID, hash, docType, mime, sizeStr, metadata string) error {
+	if loanID == "" || docID == "" || hash == "" {
+		return fmt.Errorf("loanID, docID and hash are required")
+	}
+
+	// parse size
+	sz := int64(0)
+	if sizeStr != "" {
+		val, err := strconv.ParseInt(sizeStr, 10, 64)
+		if err != nil {
+			return fmt.Errorf("invalid size: %v", err)
+		}
+		sz = val
+	}
+
+	mspid, err := getMSPID(ctx)
+	if err != nil {
+		return err
+	}
+
+	docKey := fmt.Sprintf("DOC_%s", docID)
+	exists, err := s.TransactionExists(ctx, docKey)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return fmt.Errorf("document %s already exists", docID)
+	}
+
+	doc := Document{
+		DocID:      docID,
+		LoanID:     loanID,
+		Hash:       hash,
+		Type:       docType,
+		Mime:       mime,
+		Size:       sz,
+		OwnerOrg:   mspid,
+		UploadedAt: time.Now(),
+		Status:     "SUBMITTED",
+		Metadata:   metadata,
+	}
+	b, _ := json.Marshal(doc)
+	if err := ctx.GetStub().PutState(docKey, b); err != nil {
+		return err
+	}
+	// emit event
+	_ = ctx.GetStub().SetEvent("DOC_SUBMITTED", b)
+	return nil
+}
+
+// GetDocument returns document metadata by docID
+func (s *IUContract) GetDocument(ctx contractapi.TransactionContextInterface, docID string) (*Document, error) {
+	key := fmt.Sprintf("DOC_%s", docID)
+	val, err := ctx.GetStub().GetState(key)
+	if err != nil {
+		return nil, err
+	}
+	if val == nil {
+		return nil, fmt.Errorf("document %s not found", docID)
+	}
+	var d Document
+	if err := json.Unmarshal(val, &d); err != nil {
+		return nil, err
+	}
+	return &d, nil
+}
+
+// GetLoanDocuments lists documents for a loan
+func (s *IUContract) GetLoanDocuments(ctx contractapi.TransactionContextInterface, loanID string) (string, error) {
+	query := fmt.Sprintf(`{"selector":{"loanId":"%s"}}`, loanID)
+	it, err := ctx.GetStub().GetQueryResult(query)
+	if err != nil {
+		return "", err
+	}
+	defer it.Close()
+	var out []Document
+	for it.HasNext() {
+		qr, err := it.Next()
+		if err != nil {
+			return "", err
+		}
+		var d Document
+		if err := json.Unmarshal(qr.Value, &d); err == nil && d.DocID != "" {
+			out = append(out, d)
+		}
+	}
+	b, _ := json.Marshal(out)
+	return string(b), nil
+}
+
+// SubmitKYCFormC stores private Form-C in admin-only collection and public hash reference
+func (s *IUContract) SubmitKYCFormC(ctx contractapi.TransactionContextInterface, loanID, kycID, partyID string) error {
+	mspid, err := getMSPID(ctx)
+	if err != nil {
+		return err
+	}
+	if mspid != "AdminMSP" {
+		return fmt.Errorf("only AdminMSP can submit KYC Form-C")
+	}
+	if loanID == "" || kycID == "" || partyID == "" {
+		return fmt.Errorf("loanID, kycID, partyID are required")
+	}
+	transient, err := ctx.GetStub().GetTransient()
+	if err != nil {
+		return fmt.Errorf("failed to get transient: %v", err)
+	}
+	formBytes, ok := transient["formc"]
+	if !ok || len(formBytes) == 0 {
+		return fmt.Errorf("transient field 'formc' is required")
+	}
+	// store private data
+	const collection = "formc_admin_only"
+	if err := ctx.GetStub().PutPrivateData(collection, kycID, formBytes); err != nil {
+		return fmt.Errorf("put private data failed: %v", err)
+	}
+	// compute hash of full form for public reference
+	h := sha256.Sum256(formBytes)
+	hashHex := fmt.Sprintf("%x", h[:])
+	ref := KYCReference{
+		KYCID:     kycID,
+		LoanID:    loanID,
+		PartyID:   partyID,
+		Hash:      hashHex,
+		Status:    "SUBMITTED",
+		Timestamp: time.Now(),
+		Remarks:   "",
+	}
+	b, _ := json.Marshal(ref)
+	if err := ctx.GetStub().PutState(fmt.Sprintf("KYC_%s", kycID), b); err != nil {
+		return err
+	}
+	_ = ctx.GetStub().SetEvent("KYC_SUBMITTED", b)
+	return nil
+}
+
+// ApproveKYC allows AdminMSP to approve/reject KYC
+func (s *IUContract) ApproveKYC(ctx contractapi.TransactionContextInterface, kycID string, approved bool, remarks string) error {
+	mspid, err := getMSPID(ctx)
+	if err != nil {
+		return err
+	}
+	if mspid != "AdminMSP" {
+		return fmt.Errorf("only AdminMSP can approve KYC")
+	}
+	key := fmt.Sprintf("KYC_%s", kycID)
+	val, err := ctx.GetStub().GetState(key)
+	if err != nil {
+		return err
+	}
+	if val == nil {
+		return fmt.Errorf("kyc %s not found", kycID)
+	}
+	var ref KYCReference
+	if err := json.Unmarshal(val, &ref); err != nil {
+		return err
+	}
+	if approved {
+		ref.Status = "APPROVED"
+	} else {
+		ref.Status = "REJECTED"
+	}
+	ref.Timestamp = time.Now()
+	ref.Remarks = remarks
+	b, _ := json.Marshal(ref)
+	if err := ctx.GetStub().PutState(key, b); err != nil {
+		return err
+	}
+	_ = ctx.GetStub().SetEvent("KYC_APPROVED", b)
+	return nil
 }
 
 func main() {

@@ -7,9 +7,10 @@ const fs = require('fs');
 
 // Import MSP routes
 const mspRoutes = require('./msp-management/msp-routes');
+const documentsRoutes = require('./routes/documents');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 4000;
 
 // Middleware
 app.use(cors());
@@ -18,6 +19,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 // MSP Management Routes
 app.use('/api/msp', mspRoutes);
+app.use('/api/documents', documentsRoutes);
 
 // Fabric Network Configuration
 const channelName = 'iu-channel';
