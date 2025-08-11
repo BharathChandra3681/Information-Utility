@@ -3,6 +3,13 @@
 const { Contract } = require('fabric-contract-api');
 
 class FinancialInformationUtilityContract extends Contract {
+    // Deterministic timestamp helper
+    _txTimestampISO(ctx) {
+        const ts = ctx.stub.getTxTimestamp();
+        // ts.seconds is a protobuf Long; convert to number (seconds) * 1000
+        const ms = (typeof ts.seconds === 'object' ? ts.seconds.low : ts.seconds) * 1000;
+        return new Date(ms).toISOString();
+    }
 
     /**
      * Initialize the ledger with some sample financial data
@@ -187,17 +194,15 @@ class FinancialInformationUtilityContract extends Contract {
      */
     async CreateFinancialRecord(ctx, recordId, recordType, creditorId, debtorId, financialInstitutionData, borrowerData, loanData) {
         try {
-            // Check access control - only CreditorMSP can create financial records
             const clientMSPID = ctx.clientIdentity.getMSPID();
             if (clientMSPID !== 'CreditorMSP' && clientMSPID !== 'AdminMSP') {
                 throw new Error(`Organization ${clientMSPID} is not authorized to create financial records`);
             }
-
             const exists = await this.FinancialRecordExists(ctx, recordId);
             if (exists) {
                 throw new Error(`Financial record ${recordId} already exists`);
             }
-
+            const deterministicTime = this._txTimestampISO(ctx);
             const financialInstitution = JSON.parse(financialInstitutionData);
             const borrower = JSON.parse(borrowerData);
             const loanDetails = JSON.parse(loanData);
@@ -225,14 +230,14 @@ class FinancialInformationUtilityContract extends Contract {
                     'AdminMSP': true
                 },
                 metadata: {
-                    createdAt: new Date().toISOString(),
-                    lastModified: new Date().toISOString(),
+                    createdAt: deterministicTime,
+                    lastModified: deterministicTime,
                     version: '1.0',
                     createdBy: clientMSPID
                 },
                 history: [{
                     action: 'CREATED',
-                    timestamp: new Date().toISOString(),
+                    timestamp: deterministicTime,
                     performedBy: clientMSPID,
                     details: 'Financial record created'
                 }]
@@ -313,7 +318,7 @@ class FinancialInformationUtilityContract extends Contract {
             // Track changes in history
             const historyEntry = {
                 action: 'UPDATED',
-                timestamp: new Date().toISOString(),
+                timestamp: deterministicTime,
                 performedBy: clientMSPID,
                 details: `Updated fields: ${Object.keys(updates).join(', ')}`,
                 previousValues: {}
@@ -333,7 +338,7 @@ class FinancialInformationUtilityContract extends Contract {
                 }
             }
 
-            financialRecord.metadata.lastModified = new Date().toISOString();
+            financialRecord.metadata.lastModified = deterministicTime;
             financialRecord.metadata.version = (parseFloat(financialRecord.metadata.version) + 0.1).toFixed(1);
             financialRecord.history.push(historyEntry);
 
@@ -508,7 +513,8 @@ class FinancialInformationUtilityContract extends Contract {
      * @param {String} details - Additional details
      */
     async createAuditEntry(ctx, recordId, action, performedBy, details) {
-        const auditId = `AUDIT_${recordId}_${Date.now()}`;
+        const deterministicTime = this._txTimestampISO(ctx);
+        const auditId = `AUDIT_${recordId}_${deterministicTime.replace(/[^0-9A-Za-z]/g,'')}`;
         const auditEntry = {
             docType: 'AuditEntry',
             auditId: auditId,
@@ -516,10 +522,8 @@ class FinancialInformationUtilityContract extends Contract {
             action: action,
             performedBy: performedBy,
             details: details,
-            timestamp: new Date().toISOString()
+            timestamp: deterministicTime
         };
-        
-        // This would be stored on audit-compliance-channel in a real implementation
         await ctx.stub.putState(auditId, Buffer.from(JSON.stringify(auditEntry)));
     }
 
@@ -533,6 +537,7 @@ class FinancialInformationUtilityContract extends Contract {
     async RecordPayment(ctx, recordId, paymentData) {
         try {
             const clientMSPID = ctx.clientIdentity.getMSPID();
+            const deterministicTime = this._txTimestampISO(ctx);
             
             // Only CreditorMSP can record payments
             if (clientMSPID !== 'CreditorMSP') {
@@ -561,13 +566,13 @@ class FinancialInformationUtilityContract extends Contract {
             // Add to history
             financialRecord.history.push({
                 action: 'PAYMENT_RECORDED',
-                timestamp: new Date().toISOString(),
+                timestamp: deterministicTime,
                 performedBy: clientMSPID,
                 details: `Payment of ${payment.amount} recorded`,
                 paymentDetails: payment
             });
 
-            financialRecord.metadata.lastModified = new Date().toISOString();
+            financialRecord.metadata.lastModified = deterministicTime;
             financialRecord.metadata.version = (parseFloat(financialRecord.metadata.version) + 0.1).toFixed(1);
 
             await ctx.stub.putState(recordId, Buffer.from(JSON.stringify(financialRecord)));
@@ -598,6 +603,7 @@ class FinancialInformationUtilityContract extends Contract {
     async VerifyFinancialRecord(ctx, recordId, verifierOrg) {
         try {
             const clientMSPID = ctx.clientIdentity.getMSPID();
+            const deterministicTime = this._txTimestampISO(ctx);
             
             // Only AdminMSP and CreditorMSP can verify records
             if (clientMSPID !== 'AdminMSP' && clientMSPID !== 'CreditorMSP') {
@@ -614,17 +620,17 @@ class FinancialInformationUtilityContract extends Contract {
 
             financialRecord.verificationStatus = 'Verified';
             financialRecord.verifiedBy = verifierOrg;
-            financialRecord.verificationTimestamp = new Date().toISOString();
+            financialRecord.verificationTimestamp = deterministicTime;
 
             // Add to history
             financialRecord.history.push({
                 action: 'VERIFIED',
-                timestamp: new Date().toISOString(),
+                timestamp: deterministicTime,
                 performedBy: clientMSPID,
                 details: `Record verified by ${verifierOrg}`
             });
 
-            financialRecord.metadata.lastModified = new Date().toISOString();
+            financialRecord.metadata.lastModified = deterministicTime;
             financialRecord.metadata.version = (parseFloat(financialRecord.metadata.version) + 0.1).toFixed(1);
 
             await ctx.stub.putState(recordId, Buffer.from(JSON.stringify(financialRecord)));
@@ -674,12 +680,12 @@ class FinancialInformationUtilityContract extends Contract {
             // Add to history
             financialRecord.history.push({
                 action: 'ACCESS_GRANTED',
-                timestamp: new Date().toISOString(),
+                timestamp: deterministicTime,
                 performedBy: clientMSPID,
                 details: `Access granted to ${organization}`
             });
 
-            financialRecord.metadata.lastModified = new Date().toISOString();
+            financialRecord.metadata.lastModified = deterministicTime;
             financialRecord.metadata.version = (parseFloat(financialRecord.metadata.version) + 0.1).toFixed(1);
 
             await ctx.stub.putState(recordId, Buffer.from(JSON.stringify(financialRecord)));
@@ -722,12 +728,12 @@ class FinancialInformationUtilityContract extends Contract {
             // Add to history
             financialRecord.history.push({
                 action: 'ACCESS_REVOKED',
-                timestamp: new Date().toISOString(),
+                timestamp: deterministicTime,
                 performedBy: clientMSPID,
                 details: `Access revoked from ${organization}`
             });
 
-            financialRecord.metadata.lastModified = new Date().toISOString();
+            financialRecord.metadata.lastModified = deterministicTime;
             financialRecord.metadata.version = (parseFloat(financialRecord.metadata.version) + 0.1).toFixed(1);
 
             await ctx.stub.putState(recordId, Buffer.from(JSON.stringify(financialRecord)));
@@ -768,95 +774,6 @@ class FinancialInformationUtilityContract extends Contract {
         } catch (error) {
             throw new Error(`Failed to get financial record history ${recordId}: ${error.message}`);
         }
-    }
-
-    /**
-     * Store a document hash on the ledger
-     * @param {Context} ctx - The transaction context
-     * @param {String} documentId - Unique document identifier
-     * @param {String} sha256Hash - SHA-256 hash of the document content (hex)
-     * @param {String} owner - Owner identifier (free-form)
-     * @param {String} metadataJson - Optional JSON string with extra metadata
-     * @returns {String} Created document hash record
-     */
-    async StoreDocumentHash(ctx, documentId, sha256Hash, owner, metadataJson) {
-        try {
-            const clientMSPID = ctx.clientIdentity.getMSPID();
-
-            // Allow AdminMSP and CreditorMSP to store document hashes
-            if (clientMSPID !== 'AdminMSP' && clientMSPID !== 'CreditorMSP') {
-                throw new Error(`Organization ${clientMSPID} is not authorized to store document hashes`);
-            }
-
-            const exists = await this.DocumentHashExists(ctx, documentId);
-            if (exists) {
-                throw new Error(`Document hash with id ${documentId} already exists`);
-            }
-
-            let metadata = {};
-            if (metadataJson && metadataJson.length > 0) {
-                try {
-                    metadata = JSON.parse(metadataJson);
-                } catch (e) {
-                    throw new Error('metadataJson must be valid JSON');
-                }
-            }
-
-            const documentHashRecord = {
-                docType: 'DocumentHash',
-                documentId: documentId,
-                sha256: sha256Hash,
-                owner: owner,
-                createdBy: clientMSPID,
-                createdAt: new Date().toISOString(),
-                metadata: metadata
-            };
-
-            await ctx.stub.putState(documentId, Buffer.from(JSON.stringify(documentHashRecord)));
-
-            await this.createAuditEntry(
-                ctx,
-                documentId,
-                'DOCUMENT_HASH_STORED',
-                clientMSPID,
-                `Document hash stored for ${documentId}`
-            );
-
-            ctx.stub.setEvent('DocumentHashStored', Buffer.from(JSON.stringify({
-                documentId: documentId,
-                sha256: sha256Hash,
-                owner: owner
-            })));
-
-            return JSON.stringify(documentHashRecord);
-        } catch (error) {
-            throw new Error(`Failed to store document hash: ${error.message}`);
-        }
-    }
-
-    /**
-     * Read a stored document hash
-     * @param {Context} ctx - The transaction context
-     * @param {String} documentId - Document identifier
-     * @returns {String} Document hash record
-     */
-    async ReadDocumentHash(ctx, documentId) {
-        const data = await ctx.stub.getState(documentId);
-        if (!data || data.length === 0) {
-            throw new Error(`Document hash ${documentId} does not exist`);
-        }
-        return data.toString();
-    }
-
-    /**
-     * Check if a document hash record exists
-     * @param {Context} ctx - The transaction context
-     * @param {String} documentId - Document identifier
-     * @returns {Boolean}
-     */
-    async DocumentHashExists(ctx, documentId) {
-        const data = await ctx.stub.getState(documentId);
-        return data && data.length > 0;
     }
 
 }

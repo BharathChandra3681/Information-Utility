@@ -42,13 +42,24 @@ function checkPrerequisites() {
 function generateCrypto() {
     echo "🔐 Generating cryptographic material..."
     
-    if [ -d "network/organizations/peerOrganizations" ]; then
+    # Check if crypto material actually exists with certificates
+    if [ -d "network/organizations/peerOrganizations" ] && [ -f "network/organizations/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/msp/tlscacerts/tlsca.iu-network.com-cert.pem" ]; then
         echo "⚠️  Crypto material already exists. Skipping generation."
         return 0
     fi
     
+    echo "🔄 Crypto material incomplete or missing. Regenerating..."
+    
+    # Remove existing incomplete crypto material
+    rm -rf network/organizations/peerOrganizations
+    rm -rf network/organizations/ordererOrganizations
+    rm -rf network/organizations/fabric-ca
+    
+    # Set PATH to include network/bin
+    export PATH=${PWD}/network/bin:$PATH
+    
     # Generate crypto material using cryptogen
-    cryptogen generate --config=./network/crypto-config/crypto-config.yaml --output="network/organizations"
+    cryptogen generate --config=./network/crypto-config.yaml --output="network/organizations"
     
     if [ $? -ne 0 ]; then
         echo "❌ Failed to generate crypto material"
@@ -62,12 +73,22 @@ function generateCrypto() {
 function createGenesisBlock() {
     echo "⛓️  Creating genesis block..."
     
-    if [ -f "network/system-genesis-block/genesis.block" ]; then
+    # Check if genesis block actually exists and is valid
+    if [ -f "network/system-genesis-block/genesis.block" ] && [ -s "network/system-genesis-block/genesis.block" ]; then
         echo "⚠️  Genesis block already exists. Skipping creation."
         return 0
     fi
     
+    echo "🔄 Genesis block missing or invalid. Creating..."
+    
+    # Remove existing invalid genesis block
+    rm -f network/system-genesis-block/genesis.block
+    
     mkdir -p network/system-genesis-block
+    
+    # Set PATH to include network/bin and FABRIC_CFG_PATH
+    export PATH=${PWD}/network/bin:$PATH
+    export FABRIC_CFG_PATH=${PWD}/network
     
     configtxgen -profile IUOrdererGenesis -channelID system-channel -outputBlock ./network/system-genesis-block/genesis.block
     
@@ -84,7 +105,7 @@ function startContainers() {
     echo "🐳 Starting Docker containers..."
     
     # Start the network
-    docker-compose -f network/docker/docker-compose-iu.yaml up -d
+    docker-compose -f network/docker-compose.yaml up -d
     
     if [ $? -ne 0 ]; then
         echo "❌ Failed to start Docker containers"
@@ -123,8 +144,8 @@ function displayNetworkStatus() {
     echo "🔗 Network Endpoints:"
     echo "   - Orderer:      localhost:7050"
     echo "   - Creditor Peer: localhost:7051"
-    echo "   - Debtor Peer:   localhost:9051"
-    echo "   - Admin Peer:    localhost:11051"
+    echo "   - Debtor Peer:   localhost:8051"
+    echo "   - Admin Peer:    localhost:9051"
     
     echo ""
     echo "📊 Operations Endpoints:"

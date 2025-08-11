@@ -2,9 +2,10 @@
 
 # Channel creation script for IU Network
 
-export FABRIC_CFG_PATH=${PWD}/network/configtx
-export CORE_PEER_TLS_ENABLED=true
-export ORDERER_CA=${PWD}/network/organizations/ordererOrganizations/iu.com/orderers/orderer.iu.com/msp/tlscacerts/tlsca.iu.com-cert.pem
+export FABRIC_CFG_PATH=${PWD}/network
+export PATH=${PWD}/network/bin:$PATH
+export CORE_PEER_TLS_ENABLED=false
+export ORDERER_CA=${PWD}/network/organizations/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/msp/cacerts/ca.iu-network.com-cert.pem
 
 CHANNEL1_NAME="financial-operations-channel"
 CHANNEL2_NAME="audit-compliance-channel"
@@ -15,19 +16,16 @@ function setGlobals() {
     
     if [ "$ORG" == "creditor" ]; then
         export CORE_PEER_LOCALMSPID="CreditorOrgMSP"
-        export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/network/organizations/peerOrganizations/creditororg.iu.com/peers/peer0.creditororg.iu.com/tls/ca.crt
-        export CORE_PEER_MSPCONFIGPATH=${PWD}/network/organizations/peerOrganizations/creditororg.iu.com/users/Admin@creditororg.iu.com/msp
+        export CORE_PEER_MSPCONFIGPATH=${PWD}/network/organizations/peerOrganizations/creditor.iu-network.com/users/Admin@creditor.iu-network.com/msp
         export CORE_PEER_ADDRESS=localhost:7051
     elif [ "$ORG" == "debtor" ]; then
         export CORE_PEER_LOCALMSPID="DebtorOrgMSP"
-        export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/network/organizations/peerOrganizations/debtororg.iu.com/peers/peer0.debtororg.iu.com/tls/ca.crt
-        export CORE_PEER_MSPCONFIGPATH=${PWD}/network/organizations/peerOrganizations/debtororg.iu.com/users/Admin@debtororg.iu.com/msp
-        export CORE_PEER_ADDRESS=localhost:9051
+        export CORE_PEER_MSPCONFIGPATH=${PWD}/network/organizations/peerOrganizations/debtor.iu-network.com/users/Admin@debtor.iu-network.com/msp
+        export CORE_PEER_ADDRESS=localhost:8051
     elif [ "$ORG" == "admin" ]; then
         export CORE_PEER_LOCALMSPID="AdminOrgMSP"
-        export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/network/organizations/peerOrganizations/adminorg.iu.com/peers/peer0.adminorg.iu.com/tls/ca.crt
-        export CORE_PEER_MSPCONFIGPATH=${PWD}/network/organizations/peerOrganizations/adminorg.iu.com/users/Admin@adminorg.iu.com/msp
-        export CORE_PEER_ADDRESS=localhost:11051
+        export CORE_PEER_MSPCONFIGPATH=${PWD}/network/organizations/peerOrganizations/admin.iu-network.com/users/Admin@admin.iu-network.com/msp
+        export CORE_PEER_ADDRESS=localhost:9051
     fi
 }
 
@@ -52,7 +50,7 @@ function createChannel() {
     setGlobals creditor
     
     # Create channel
-    peer channel create -o localhost:7050 -c $CHANNEL_NAME --ordererTLSHostnameOverride orderer.iu.com -f ./network/channel-artifacts/${CHANNEL_NAME}.tx --outputBlock ./network/channel-artifacts/${CHANNEL_NAME}.block --tls --cafile $ORDERER_CA
+    peer channel create -o localhost:7050 -c $CHANNEL_NAME --ordererTLSHostnameOverride orderer.iu-network.com -f ./network/channel-artifacts/${CHANNEL_NAME}.tx --outputBlock ./network/channel-artifacts/${CHANNEL_NAME}.block
     
     if [ $? -ne 0 ]; then
         echo "❌ Failed to create channel $CHANNEL_NAME"
@@ -99,7 +97,7 @@ function updateAnchorPeers() {
     
     setGlobals $ORG
     
-    peer channel update -o localhost:7050 --ordererTLSHostnameOverride orderer.iu.com -c $CHANNEL_NAME -f ./network/channel-artifacts/${ORG_MSP}anchors_${CHANNEL_NAME}.tx --tls --cafile $ORDERER_CA
+    peer channel update -o localhost:7050 --ordererTLSHostnameOverride orderer.iu-network.com -c $CHANNEL_NAME -f ./network/channel-artifacts/${ORG_MSP}anchors_${CHANNEL_NAME}.tx
     
     if [ $? -ne 0 ]; then
         echo "❌ Failed to update anchor peers for $ORG_MSP"

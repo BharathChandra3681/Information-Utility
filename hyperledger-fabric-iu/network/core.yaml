@@ -61,6 +61,17 @@ peer:
     deliveryClient:
       interval: 60s
       timeout: 20s
+  handlers:
+    authFilters:
+      - name: DefaultAuth
+    decorators:
+      - name: DefaultDecorator
+    endorsers:
+      escc:
+        name: DefaultEndorsement
+    validators:
+      vscc:
+        name: DefaultValidation
 
 # VM endpoint configuration
 vm:
@@ -105,7 +116,7 @@ chaincode:
   # Builder for Node.js chaincode
   node:
     # Runtime for node chaincode  
-    runtime: node:16-alpine
+    runtime: hyperledger/fabric-nodeenv:2.5
 
   # Generic builder environment, suitable for most chaincode types
   externalBuilders: []
@@ -121,16 +132,10 @@ chaincode:
   
   # System chaincodes configuration
   system:
-    # Lifecycle chaincode endorsement policy
-    lifecycle: enable
-    # Configuration transaction chaincode endorsement policy  
-    configscc: enable
-    # Ledger Query chaincode endorsement policy
-    lscc: enable
-    # Query chaincode endorsement policy
-    qscc: enable
-    # Configuration system chaincode endorsement policy
+    _lifecycle: enable
     cscc: enable
+    lscc: enable
+    qscc: enable
 
 # Ledger configuration
 ledger:

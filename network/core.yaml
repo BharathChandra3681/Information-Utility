@@ -1,0 +1,203 @@
+# Hyperledger Fabric Peer Core Configuration
+
+# Peer configuration
+peer:
+  # The ID to logically separate one instance from another
+  id: default
+
+  # Path on the file system where peer will store data (e.g. ledger)  
+  fileSystemPath: /var/hyperledger/production
+
+  # BCCSP (Blockchain Crypto Service Provider) configuration
+  BCCSP:
+    Default: SW
+    SW:
+      Hash: SHA2
+      Security: 256
+      FileKeyStore:
+        KeyStore: /etc/hyperledger/fabric/msp/keystore
+
+  # Local MSP configuration
+  localMspId: 
+  
+  # Path to local MSP directory  
+  mspConfigPath: /etc/hyperledger/fabric/msp
+
+  # TLS Settings
+  tls:
+    # Require client and server-side TLS
+    enabled: true
+    # Require client certificates / mutual TLS for inbound connections
+    clientAuthRequired: false
+    # X.509 certificate used for TLS server
+    cert:
+      file: /etc/hyperledger/fabric/tls/server.crt
+    # Private key used for TLS server
+    key:
+      file: /etc/hyperledger/fabric/tls/server.key
+    # Trusted root certificate chain for TLS server
+    rootcert:
+      file: /etc/hyperledger/fabric/tls/ca.crt
+    # Client certificate for TLS client connections
+    clientCert:
+      file: /etc/hyperledger/fabric/tls/server.crt
+    # Private key for TLS client connections  
+    clientKey:
+      file: /etc/hyperledger/fabric/tls/server.key
+
+  # Keepalive settings for client connections
+  keepalive:
+    # Time between client pings
+    interval: 60s
+    # Timeout for client ping response
+    timeout: 20s
+    # Minimum time between client pings  
+    minInterval: 60s
+    # Client and server keepalive policy
+    client:
+      interval: 60s
+      timeout: 20s
+    # Delivery service keepalive policy
+    deliveryClient:
+      interval: 60s
+      timeout: 20s
+
+# VM endpoint configuration
+vm:
+  # Endpoint of the vm management system
+  endpoint: unix:///host/var/run/docker.sock
+  
+  # Settings for docker vm type
+  docker:
+    # TLS configuration for docker connections
+    tls:
+      enabled: false
+    # Enables / disables the attachment to network mode
+    attachStdout: false
+    # Host configuration
+    hostConfig:
+      # Network mode for the docker container
+      NetworkMode: fabric_iu_network
+      # Log driver for containers
+      LogConfig:
+        Type: json-file
+        Config:
+          max-size: "50m"
+          max-file: "5"
+      # Memory limit for containers
+      Memory: 2147483648
+
+# Chaincode configuration
+chaincode:
+  # The id is used by the Chaincode stub to register the executing Chaincode
+  # ID with the Peer and is generally supplied through ENV variables
+  id:
+    path:
+    name:
+
+  # Builder for Go Lang chaincode
+  golang:
+    # Runtime for golang chaincode
+    runtime: golang:1.15
+    # Dynamic linking is not supported
+    dynamicLink: false
+
+  # Builder for Node.js chaincode
+  node:
+    # Runtime for node chaincode  
+    runtime: hyperledger/fabric-nodeenv:2.5
+
+  # Generic builder environment, suitable for most chaincode types
+  externalBuilders: []
+
+  # Installation timeout
+  installTimeout: 300s
+  
+  # Execution timeout
+  executeTimeout: 30s
+  
+  # Start timeout
+  startuptimeout: 300s
+  
+  # System chaincodes configuration
+  system:
+    _lifecycle: enable
+    cscc: enable
+    lscc: enable
+    qscc: enable
+
+# Ledger configuration
+ledger:
+  # Blockchain configuration
+  blockchain:
+    # Directory to store blockchain data
+    path: /var/hyperledger/production/ledgersData/chains
+  
+  # State database configuration
+  state:
+    # State database type
+    stateDatabase: goleveldb
+    # CouchDB configuration
+    couchDBConfig:
+      # CouchDB server address
+      couchDBAddress: 127.0.0.1:5984
+      # Username for CouchDB
+      username:
+      # Password for CouchDB  
+      password:
+      # Max number of retries for CouchDB
+      maxRetries: 3
+      # Max number of retries for CouchDB during startup
+      maxRetriesOnStartup: 12
+      # Request timeout for CouchDB
+      requestTimeout: 35s
+      # Internal query limit
+      internalQueryLimit: 1000
+      # Max batch size for CouchDB bulk operations
+      maxBatchUpdateSize: 1000
+      # Create global changes database
+      createGlobalChangesDB: false
+      # Red book mode
+      redBookMode: false
+
+  # History database configuration  
+  history:
+    # Enable history database
+    enableHistoryDatabase: true
+
+  # Private data configuration
+  pvtdataStore:
+    # Collection eligible policy
+    collElgProcMaxDbBatchSize: 5000
+    # Collection eligible policy timeout
+    collElgProcDbBatchesInterval: 1000ms
+
+# Operations configuration  
+operations:
+  # Host and port for operations server
+  listenAddress: 0.0.0.0:9443
+  # TLS configuration for operations endpoint
+  tls:
+    enabled: false
+    cert:
+      file:
+    key:
+      file:
+    clientAuthRequired: false
+    clientRootCAs:
+      files: []
+
+# Metrics configuration
+metrics:
+  # Metrics provider
+  provider: prometheus
+  # Statsd configuration
+  statsd:
+    # Network type
+    network: udp
+    # Address  
+    address: 127.0.0.1:8125
+    # Write interval
+    writeInterval: 10s
+    # Prefix for metrics
+    prefix:

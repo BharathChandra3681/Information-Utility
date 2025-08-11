@@ -1,0 +1,100 @@
+# Hyperledger Fabric Orderer Configuration
+
+# General configuration
+General:
+  # Listen address
+  ListenAddress: 0.0.0.0
+  
+  # Listen port
+  ListenPort: 7050
+  
+  # TLS configuration
+  TLS:
+    Enabled: false
+    PrivateKey: 
+    Certificate: 
+    RootCAs: []
+    ClientAuthRequired: false
+    ClientRootCAs: []
+
+  # Keepalive settings
+  Keepalive:
+    ServerMinInterval: 60s
+    ServerInterval: 7200s
+    ServerTimeout: 20s
+
+  # Connection timeout
+  ConnectionTimeout: 0s
+
+  # Genesis method
+  GenesisMethod: none
+  GenesisFile: 
+
+  # Bootstrap method  
+  BootstrapMethod: none
+  BootstrapFile: /etc/hyperledger/fabric/genesisblock
+
+  # Local MSP configuration
+  LocalMSPDir: /var/hyperledger/orderer/msp
+  LocalMSPID: OrdererMSP
+
+  # Profile configuration
+  Profile:
+    Enabled: false
+    Address: 0.0.0.0:6060
+
+  # BCCSP (Blockchain Crypto Service Provider) configuration
+  BCCSP:
+    Default: SW
+    SW:
+      Hash: SHA2
+      Security: 256
+      FileKeyStore:
+        KeyStorePath: 
+
+  # Authentication configuration
+  Authentication:
+    TimeWindow: 15m
+
+# File ledger configuration
+FileLedger:
+  Location: /var/hyperledger/production/orderer
+  Prefix: hyperledger-fabric-ordererledger
+
+# Consensus configuration
+# Note: Solo consensus doesn't require WAL or snapshot directories
+
+# Channel participation
+ChannelParticipation:
+  Enabled: true
+  MaxRequestBodySize: 1048576
+
+# Admin service configuration
+Admin:
+  ListenAddress: 0.0.0.0:7053
+  TLS:
+    Enabled: false
+    Certificate: 
+    PrivateKey: 
+    RootCAs: []
+    ClientAuthRequired: false
+    ClientRootCAs: []
+
+# Operations service configuration  
+Operations:
+  ListenAddress: orderer.iu-network.com:9443
+  TLS:
+    Enabled: false
+    Certificate: 
+    PrivateKey: 
+    ClientAuthRequired: false
+    ClientRootCAs: []
+
+# Metrics configuration
+Metrics:
+  Provider: prometheus
+  Statsd:
+    Network: udp
+    Address: 127.0.0.1:8125
+    WriteInterval: 30s
+    Prefix:

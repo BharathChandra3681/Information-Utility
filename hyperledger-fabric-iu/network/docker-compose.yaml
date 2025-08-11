@@ -69,6 +69,8 @@ services:
       - ./organizations/fabric-ca/admin:/etc/hyperledger/fabric-ca-server
     networks:
       - iu-network
+
+  # Orderer
   orderer.iu-network.com:
     container_name: orderer.iu-network.com
     image: hyperledger/fabric-orderer:2.5.12
@@ -112,6 +114,7 @@ services:
     networks:
       - iu-network
 
+  # Creditor Peer
   peer0.creditor.iu-network.com:
     container_name: peer0.creditor.iu-network.com
     image: hyperledger/fabric-peer:2.5.12
@@ -119,7 +122,8 @@ services:
       service: hyperledger-fabric
     environment:
       - FABRIC_CFG_PATH=/etc/hyperledger/peercfg
-      - FABRIC_LOGGING_SPEC=INFO
+      - FABRIC_LOGGING_SPEC=INFO,chaincode.platform=debug
+      - DOCKER_BUILDKIT=0
       - CORE_PEER_TLS_ENABLED=true
       - CORE_PEER_PROFILE_ENABLED=false
       - CORE_PEER_TLS_CERT_FILE=/etc/hyperledger/fabric/tls/server.crt
@@ -136,12 +140,16 @@ services:
       - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/fabric/msp
       - CORE_OPERATIONS_LISTENADDRESS=peer0.creditor.iu-network.com:9444
       - CORE_METRICS_PROVIDER=prometheus
-      - CHAINCODE_AS_A_SERVICE_BUILDER_CONFIG={"peername":"peer0creditor"}
       - CORE_CHAINCODE_EXECUTETIMEOUT=300s
-      - CORE_CHAINCODE_NODE_RUNTIME=node:16-alpine
-      - CORE_CHAINCODE_BUILDER=hyperledger/fabric-nodeenv:2.5.12
+      - CORE_CHAINCODE_NODE_RUNTIME=hyperledger/fabric-nodeenv:2.5
+      - CORE_CHAINCODE_BUILDER=hyperledger/fabric-ccenv:2.5.12
       - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
       - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=fabric_iu_network
+      # FIXED: Chaincode deployment configuration
+      - CORE_CHAINCODE_LOGGING_LEVEL=DEBUG
+      - CORE_CHAINCODE_LOGGING_SHIM=DEBUG
+      - CORE_PEER_GOSSIP_USELEADERELECTION=true
+      - CORE_PEER_GOSSIP_ORGLEADER=false
     volumes:
       - /var/run/docker.sock:/host/var/run/docker.sock
       - ./crypto-config/peerOrganizations/creditor.iu-network.com/peers/peer0.creditor.iu-network.com/msp:/etc/hyperledger/fabric/msp
@@ -149,6 +157,7 @@ services:
       - ./crypto-config/peerOrganizations/creditor.iu-network.com/users:/etc/hyperledger/fabric/users
       - ./core.yaml:/etc/hyperledger/peercfg/core.yaml
       - peer0.creditor.iu-network.com:/var/hyperledger/production
+      - ../chaincode:/opt/gopath/src/github.com/chaincode
     working_dir: /root
     command: peer node start
     ports:
@@ -157,6 +166,7 @@ services:
     networks:
       - iu-network
 
+  # Debtor Peer
   peer0.debtor.iu-network.com:
     container_name: peer0.debtor.iu-network.com
     image: hyperledger/fabric-peer:2.5.12
@@ -164,7 +174,8 @@ services:
       service: hyperledger-fabric
     environment:
       - FABRIC_CFG_PATH=/etc/hyperledger/peercfg
-      - FABRIC_LOGGING_SPEC=INFO
+      - FABRIC_LOGGING_SPEC=INFO,chaincode.platform=debug
+      - DOCKER_BUILDKIT=0
       - CORE_PEER_TLS_ENABLED=true
       - CORE_PEER_PROFILE_ENABLED=false
       - CORE_PEER_TLS_CERT_FILE=/etc/hyperledger/fabric/tls/server.crt
@@ -181,12 +192,16 @@ services:
       - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/fabric/msp
       - CORE_OPERATIONS_LISTENADDRESS=peer0.debtor.iu-network.com:9445
       - CORE_METRICS_PROVIDER=prometheus
-      - CHAINCODE_AS_A_SERVICE_BUILDER_CONFIG={"peername":"peer0debtor"}
       - CORE_CHAINCODE_EXECUTETIMEOUT=300s
-      - CORE_CHAINCODE_NODE_RUNTIME=node:16-alpine
-      - CORE_CHAINCODE_BUILDER=hyperledger/fabric-nodeenv:2.5.12
+      - CORE_CHAINCODE_NODE_RUNTIME=hyperledger/fabric-nodeenv:2.5
+      - CORE_CHAINCODE_BUILDER=hyperledger/fabric-ccenv:2.5.12
       - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
       - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=fabric_iu_network
+      # FIXED: Chaincode deployment configuration
+      - CORE_CHAINCODE_LOGGING_LEVEL=DEBUG
+      - CORE_CHAINCODE_LOGGING_SHIM=DEBUG
+      - CORE_PEER_GOSSIP_USELEADERELECTION=true
+      - CORE_PEER_GOSSIP_ORGLEADER=false
     volumes:
       - /var/run/docker.sock:/host/var/run/docker.sock
       - ./crypto-config/peerOrganizations/debtor.iu-network.com/peers/peer0.debtor.iu-network.com/msp:/etc/hyperledger/fabric/msp
@@ -194,6 +209,7 @@ services:
       - ./crypto-config/peerOrganizations/debtor.iu-network.com/users:/etc/hyperledger/fabric/users
       - ./core.yaml:/etc/hyperledger/peercfg/core.yaml
       - peer0.debtor.iu-network.com:/var/hyperledger/production
+      - ../chaincode:/opt/gopath/src/github.com/chaincode
     working_dir: /root
     command: peer node start
     ports:
@@ -202,6 +218,7 @@ services:
     networks:
       - iu-network
 
+  # Admin Peer
   peer0.admin.iu-network.com:
     container_name: peer0.admin.iu-network.com
     image: hyperledger/fabric-peer:2.5.12
@@ -209,7 +226,8 @@ services:
       service: hyperledger-fabric
     environment:
       - FABRIC_CFG_PATH=/etc/hyperledger/peercfg
-      - FABRIC_LOGGING_SPEC=INFO
+      - FABRIC_LOGGING_SPEC=INFO,chaincode.platform=debug
+      - DOCKER_BUILDKIT=0
       - CORE_PEER_TLS_ENABLED=true
       - CORE_PEER_PROFILE_ENABLED=false
       - CORE_PEER_TLS_CERT_FILE=/etc/hyperledger/fabric/tls/server.crt
@@ -226,12 +244,16 @@ services:
       - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/fabric/msp
       - CORE_OPERATIONS_LISTENADDRESS=peer0.admin.iu-network.com:9446
       - CORE_METRICS_PROVIDER=prometheus
-      - CHAINCODE_AS_A_SERVICE_BUILDER_CONFIG={"peername":"peer0admin"}
       - CORE_CHAINCODE_EXECUTETIMEOUT=300s
-      - CORE_CHAINCODE_NODE_RUNTIME=node:16-alpine
-      - CORE_CHAINCODE_BUILDER=hyperledger/fabric-nodeenv:2.5.12
+      - CORE_CHAINCODE_NODE_RUNTIME=hyperledger/fabric-nodeenv:2.5
+      - CORE_CHAINCODE_BUILDER=hyperledger/fabric-ccenv:2.5.12
       - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
       - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=fabric_iu_network
+      # FIXED: Chaincode deployment configuration
+      - CORE_CHAINCODE_LOGGING_LEVEL=DEBUG
+      - CORE_CHAINCODE_LOGGING_SHIM=DEBUG
+      - CORE_PEER_GOSSIP_USELEADERELECTION=true
+      - CORE_PEER_GOSSIP_ORGLEADER=false
     volumes:
       - /var/run/docker.sock:/host/var/run/docker.sock
       - ./crypto-config/peerOrganizations/admin.iu-network.com/peers/peer0.admin.iu-network.com/msp:/etc/hyperledger/fabric/msp
@@ -239,6 +261,7 @@ services:
       - ./crypto-config/peerOrganizations/admin.iu-network.com/users:/etc/hyperledger/fabric/users
       - ./core.yaml:/etc/hyperledger/peercfg/core.yaml
       - peer0.admin.iu-network.com:/var/hyperledger/production
+      - ../chaincode:/opt/gopath/src/github.com/chaincode
     working_dir: /root
     command: peer node start
     ports:
@@ -247,6 +270,7 @@ services:
     networks:
       - iu-network
 
+  # CLI container with enhanced chaincode support
   cli:
     container_name: cli
     image: hyperledger/fabric-tools:2.5.12
@@ -268,12 +292,17 @@ services:
       - CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config/peerOrganizations/creditor.iu-network.com/users/Admin@creditor.iu-network.com/msp
       - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
       - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=fabric_iu_network
+      # FIXED: Chaincode builder environment variables
+      - CORE_CHAINCODE_BUILDER=hyperledger/fabric-ccenv:2.5.12
+      - CORE_CHAINCODE_NODE_RUNTIME=hyperledger/fabric-nodeenv:2.5
+      - CORE_CHAINCODE_LOGGING_LEVEL=DEBUG
     working_dir: /opt/gopath/src/github.com/hyperledger/fabric/peer
     command: /bin/bash
     volumes:
       - /var/run/docker.sock:/host/var/run/docker.sock
       - ./crypto-config:/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config
       - ./scripts:/opt/gopath/src/github.com/hyperledger/fabric/peer/scripts
+      # FIXED: Proper chaincode volume mounting - ensure this path exists
       - ../chaincode:/opt/gopath/src/github.com/chaincode
       - ./configtx.yaml:/etc/hyperledger/peercfg/configtx.yaml
       - ./core.yaml:/etc/hyperledger/peercfg/core.yaml

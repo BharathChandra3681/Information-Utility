@@ -1,0 +1,32 @@
+[
+  {
+    "name": "financialRecordsPrivate",
+    "type": "COL_PRIVATE",
+    "requiredPeerCount": 0,
+    "maxPeerCount": 3,
+    "blockToLive": 1000000,
+    "memberOnlyRead": true,
+    "memberOnlyWrite": true,
+    "policy": "OR('CreditorOrgMSP.member', 'DebtorOrgMSP.member', 'AdminOrgMSP.member')"
+  },
+  {
+    "name": "documentHashesPrivate",
+    "type": "COL_PRIVATE",
+    "requiredPeerCount": 0,
+    "maxPeerCount": 3,
+    "blockToLive": 1000000,
+    "memberOnlyRead": true,
+    "memberOnlyWrite": true,
+    "policy": "OR('CreditorOrgMSP.member', 'DebtorOrgMSP.member', 'AdminOrgMSP.member')"
+  },
+  {
+    "name": "auditTrailPrivate",
+    "type": "COL_PRIVATE",
+    "requiredPeerCount": 0,
+    "maxPeerCount": 3,
+    "blockToLive": 1000000,
+    "memberOnlyRead": true,
+    "memberOnlyWrite": false,
+    "policy": "OR('CreditorOrgMSP.member', 'DebtorOrgMSP.member', 'AdminOrgMSP.member')"
+  }
+] 

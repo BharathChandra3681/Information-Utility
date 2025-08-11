@@ -158,7 +158,7 @@ createChannels() {
     docker exec cli osnadmin channel join \
       --channelID financial-operations-channel \
       --config-block ${CHDIR}/financial-operations-channel.block \
-      --orderer-address orderer.iu-network.com:7053 \
+      -o orderer.iu-network.com:7053 \
       --ca-file ${ORDERER_CA_IN_CLI} \
       --client-cert ${ORDERER_TLS_CERT_IN_CLI} \
       --client-key ${ORDERER_TLS_KEY_IN_CLI}
@@ -167,7 +167,7 @@ createChannels() {
     docker exec cli osnadmin channel join \
       --channelID audit-compliance-channel \
       --config-block ${CHDIR}/audit-compliance-channel.block \
-      --orderer-address orderer.iu-network.com:7053 \
+      -o orderer.iu-network.com:7053 \
       --ca-file ${ORDERER_CA_IN_CLI} \
       --client-cert ${ORDERER_TLS_CERT_IN_CLI} \
       --client-key ${ORDERER_TLS_KEY_IN_CLI}

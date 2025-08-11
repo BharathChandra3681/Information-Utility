@@ -26,7 +26,7 @@ class LoanProcessorContract extends Contract {
      * @param {string} debtorId - Debtor identifier
      * @param {string} documentHashes - JSON string of document hashes
      */
-    async proposeLoan(ctx, loanId, loanAmount, interestRate, debtorId, documentHashes) {
+    async proposeLoan(ctx, loanId, loanAmount, interestRate, debtorId, maturityDate, currentLoanStatus, assetRecords, balanceSheetSummary, existingLiabilities, documentHashesJson) {
         console.info('=== CREDITOR: Proposing Loan ===');
         
         // Get creditor identity
@@ -45,6 +45,8 @@ class LoanProcessorContract extends Contract {
         }
 
         // Create loan proposal
+        const documentHashes = JSON.parse(documentHashesJson);
+
         const loan = {
             loanId: loanId,
             amount: parseFloat(loanAmount),
@@ -52,8 +54,13 @@ class LoanProcessorContract extends Contract {
             creditorId: creditorId,
             creditorMSP: mspId,
             debtorId: debtorId,
-            status: 'PROPOSED',
-            documentHashes: JSON.parse(documentHashes),
+            status: currentLoanStatus, // Initial status from form
+            maturityDate: maturityDate,
+            currentLoanStatus: currentLoanStatus,
+            assetRecords: assetRecords,
+            balanceSheetSummary: balanceSheetSummary,
+            existingLiabilities: existingLiabilities,
+            documentHashes: documentHashes, // Now an object of documentType -> CID
             proposedAt: new Date().toISOString(),
             acceptedAt: null,
             rejectedAt: null,
@@ -81,129 +88,500 @@ class LoanProcessorContract extends Contract {
         return JSON.stringify(loan);
     }
 
+    /**
+     * Creditor submits a new loan record with comprehensive details and document hashes.
+     * This function replaces/extends the proposeLoan functionality.
+     * @param {Context} ctx - Transaction context
+     * @param {string} loanId - Unique loan identifier
+     * @param {string} loanAmount - Loan amount
+     * @param {string} interestRate - Interest rate
+     * @param {string} debtorId - Debtor identifier
+     * @param {string} maturityDate - Loan maturity date (YYYY-MM-DD)
+     * @param {string} currentLoanStatus - Initial status of the loan (e.g., 'PROPOSED', 'ACTIVE')
+     * @param {string} assetRecords - Description of assets/collateral
+     * @param {string} balanceSheetSummary - Summary of balance sheet
+     * @param {string} existingLiabilities - Other outstanding liabilities
+     * @param {string} documentHashesJson - JSON string of document hashes (IPFS CIDs)
+     */
+    async submitLoanRecord(ctx, loanId, loanAmount, interestRate, debtorId, maturityDate, currentLoanStatus, assetRecords, balanceSheetSummary, existingLiabilities, documentHashesJson) {
+        console.info('=== CREDITOR: Submitting New Loan Record ===');
+
+        const creditorId = ctx.clientIdentity.getID();
+        const mspId = ctx.clientIdentity.getMSPID();
+
+        if (mspId !== 'CreditorMSP') {
+            throw new Error('Only Creditor organization can submit new loan records');
+        }
+
+        const exists = await this.loanExists(ctx, loanId);
+        if (exists) {
+            throw new Error(`Loan ${loanId} already exists`);
+        }
+
+        const documentHashes = JSON.parse(documentHashesJson);
+
+        const loan = {
+            loanId: loanId,
+            amount: parseFloat(loanAmount),
+            interestRate: parseFloat(interestRate),
+            creditorId: creditorId,
+            creditorMSP: mspId,
+            debtorId: debtorId,
+            status: currentLoanStatus,
+            maturityDate: maturityDate,
+            currentLoanStatus: currentLoanStatus,
+            assetRecords: assetRecords,
+            balanceSheetSummary: balanceSheetSummary,
+            existingLiabilities: existingLiabilities,
+            documentHashes: documentHashes, // Object: { "documentType": "ipfsCid" }
+            proposedAt: new Date().toISOString(),
+            acceptedAt: null,
+            rejectedAt: null,
+            transactionHistory: [{
+                action: 'LOAN_SUBMITTED',
+                actor: creditorId,
+                timestamp: new Date().toISOString(),
+                details: `Loan of ${loanAmount} submitted to debtor ${debtorId} with initial status ${currentLoanStatus}`
+            }]
+        };
+
+        await ctx.stub.putState(loanId, Buffer.from(JSON.stringify(loan)));
+
+        ctx.stub.setEvent('LoanSubmitted', Buffer.from(JSON.stringify({
+            loanId: loanId,
+            creditorId: creditorId,
+            debtorId: debtorId,
+            amount: loanAmount,
+            status: currentLoanStatus
+        })));
+
+        console.info(`✅ Loan ${loanId} submitted successfully by creditor`);
+        return JSON.stringify(loan);
+    }
     // ==========================================
     // DEBTOR FUNCTIONS - Loan Response
     // ==========================================
 
     /**
-     * Debtor accepts a loan proposal
+    /**
+     * Updates the status of a loan record.
+     * Accessible by Debtor (for ACCEPTED/REJECTED) and Creditor (for DEFAULT/NPA).
      * @param {Context} ctx - Transaction context
      * @param {string} loanId - Loan identifier
-     * @param {string} additionalDocumentHashes - Additional document hashes from debtor
+     * @param {string} newStatus - The new status for the loan (e.g., 'ACCEPTED', 'REJECTED', 'DEFAULT', 'NPA')
+     * @param {string} reason - Reason for the status update (optional)
      */
-    async acceptLoan(ctx, loanId, additionalDocumentHashes) {
-        console.info('=== DEBTOR: Accepting Loan ===');
-        
-        // Get debtor identity
-        const debtorId = ctx.clientIdentity.getID();
-        const mspId = ctx.clientIdentity.getMSPID();
-        
-        // Validate debtor authorization
-        if (mspId !== 'DebtorMSP') {
-            throw new Error('Only Debtor organization can accept loans');
-        }
+    async updateLoanStatus(ctx, loanId, newStatus, reason) {
+        console.info(`=== Updating Loan ${loanId} Status to ${newStatus} ===`);
 
-        // Get loan
+        const clientIdentity = ctx.clientIdentity;
+        const actorId = clientIdentity.getID();
+        const mspId = clientIdentity.getMSPID();
+
         const loan = await this.getLoan(ctx, loanId);
-        
-        // Validate loan status
-        if (loan.status !== 'PROPOSED') {
-            throw new Error(`Loan ${loanId} is not in PROPOSED status. Current status: ${loan.status}`);
+
+        // Access control for status updates
+        if (newStatus === 'ACCEPTED' || newStatus === 'REJECTED') {
+            if (mspId !== 'DebtorMSP' || loan.debtorId !== actorId) {
+                throw new Error('Only the intended Debtor can accept or reject this loan');
+            }
+            if (loan.status !== 'PROPOSED') {
+                throw new Error(`Loan ${loanId} is not in PROPOSED status. Current status: ${loan.status}`);
+            }
+        } else if (newStatus === 'DEFAULT' || newStatus === 'NPA') {
+            if (mspId !== 'CreditorMSP' || loan.creditorId !== actorId) {
+                throw new Error('Only the Creditor who proposed the loan can set its status to DEFAULT or NPA');
+            }
+            if (loan.status === 'REJECTED') {
+                throw new Error(`Cannot change status of a REJECTED loan to ${newStatus}`);
+            }
+        } else {
+            throw new Error(`Invalid new status: ${newStatus}`);
         }
 
-        // Validate debtor is the intended recipient
-        if (loan.debtorId !== debtorId) {
-            throw new Error(`Loan ${loanId} is not intended for this debtor`);
+        loan.status = newStatus;
+        loan.currentLoanStatus = newStatus; // Update current status field as well
+
+        const timestamp = new Date().toISOString();
+        let actionDetails = `Loan status updated to ${newStatus}`;
+
+        if (newStatus === 'ACCEPTED') {
+            loan.acceptedAt = timestamp;
+            actionDetails = `Loan accepted by debtor`;
+        } else if (newStatus === 'REJECTED') {
+            loan.rejectedAt = timestamp;
+            loan.rejectionReason = reason;
+            actionDetails = `Loan rejected: ${reason}`;
+        } else if (newStatus === 'DEFAULT') {
+            loan.defaultedAt = timestamp;
+            actionDetails = `Loan marked as DEFAULT: ${reason}`;
+        } else if (newStatus === 'NPA') {
+            loan.npaAt = timestamp;
+            actionDetails = `Loan marked as NPA: ${reason}`;
         }
 
-        // Update loan
-        loan.status = 'ACCEPTED';
-        loan.acceptedAt = new Date().toISOString();
-        
-        // Add debtor document hashes
-        if (additionalDocumentHashes) {
-            const debtorDocs = JSON.parse(additionalDocumentHashes);
-            loan.documentHashes.debtorDocuments = debtorDocs;
-        }
-
-        // Update transaction history
         loan.transactionHistory.push({
-            action: 'LOAN_ACCEPTED',
-            actor: debtorId,
-            timestamp: new Date().toISOString(),
-            details: `Loan accepted by debtor`
+            action: `LOAN_${newStatus.toUpperCase()}`,
+            actor: actorId,
+            timestamp: timestamp,
+            details: actionDetails
         });
 
-        // Store updated loan
         await ctx.stub.putState(loanId, Buffer.from(JSON.stringify(loan)));
-        
-        // Emit event
-        ctx.stub.setEvent('LoanAccepted', Buffer.from(JSON.stringify({
+
+        ctx.stub.setEvent(`LoanStatusUpdated`, Buffer.from(JSON.stringify({
             loanId: loanId,
-            creditorId: loan.creditorId,
-            debtorId: debtorId,
-            amount: loan.amount,
-            status: 'ACCEPTED'
+            actor: actorId,
+            newStatus: newStatus,
+            reason: reason || ''
         })));
 
-        console.info(`✅ Loan ${loanId} accepted successfully by debtor`);
+        console.info(`✅ Loan ${loanId} status updated to ${newStatus} successfully`);
+        return JSON.stringify(loan);
+    }
+    /**
+     * Updates the status of a loan record.
+     * Accessible by Debtor (for ACCEPTED/REJECTED) and Creditor (for DEFAULT/NPA).
+     * @param {Context} ctx - Transaction context
+     * @param {string} loanId - Loan identifier
+     * @param {string} newStatus - The new status for the loan (e.g., 'ACCEPTED', 'REJECTED', 'DEFAULT', 'NPA')
+     * @param {string} reason - Reason for the status update (optional)
+     */
+    async updateLoanStatus(ctx, loanId, newStatus, reason) {
+        console.info(`=== Updating Loan ${loanId} Status to ${newStatus} ===`);
+
+        const clientIdentity = ctx.clientIdentity;
+        const actorId = clientIdentity.getID();
+        const mspId = clientIdentity.getMSPID();
+
+        const loan = await this.getLoan(ctx, loanId);
+
+        // Access control for status updates
+        if (newStatus === 'ACCEPTED' || newStatus === 'REJECTED') {
+            if (mspId !== 'DebtorMSP' || loan.debtorId !== actorId) {
+                throw new Error('Only the intended Debtor can accept or reject this loan');
+            }
+            if (loan.status !== 'PROPOSED') {
+                throw new Error(`Loan ${loanId} is not in PROPOSED status. Current status: ${loan.status}`);
+            }
+        } else if (newStatus === 'DEFAULT' || newStatus === 'NPA') {
+            if (mspId !== 'CreditorMSP' || loan.creditorId !== actorId) {
+                throw new Error('Only the Creditor who proposed the loan can set its status to DEFAULT or NPA');
+            }
+            if (loan.status === 'REJECTED') {
+                throw new Error(`Cannot change status of a REJECTED loan to ${newStatus}`);
+            }
+        } else {
+            throw new Error(`Invalid new status: ${newStatus}`);
+        }
+
+        loan.status = newStatus;
+        loan.currentLoanStatus = newStatus; // Update current status field as well
+
+        const timestamp = new Date().toISOString();
+        let actionDetails = `Loan status updated to ${newStatus}`;
+
+        if (newStatus === 'ACCEPTED') {
+            loan.acceptedAt = timestamp;
+            actionDetails = `Loan accepted by debtor`;
+        } else if (newStatus === 'REJECTED') {
+            loan.rejectedAt = timestamp;
+            loan.rejectionReason = reason;
+            actionDetails = `Loan rejected: ${reason}`;
+        } else if (newStatus === 'DEFAULT') {
+            loan.defaultedAt = timestamp;
+            actionDetails = `Loan marked as DEFAULT: ${reason}`;
+        } else if (newStatus === 'NPA') {
+            loan.npaAt = timestamp;
+            actionDetails = `Loan marked as NPA: ${reason}`;
+        }
+
+        loan.transactionHistory.push({
+            action: `LOAN_${newStatus.toUpperCase()}`,
+            actor: actorId,
+            timestamp: timestamp,
+            details: actionDetails
+        });
+
+        await ctx.stub.putState(loanId, Buffer.from(JSON.stringify(loan)));
+
+        ctx.stub.setEvent(`LoanStatusUpdated`, Buffer.from(JSON.stringify({
+            loanId: loanId,
+            actor: actorId,
+            newStatus: newStatus,
+            reason: reason || ''
+        })));
+
+        console.info(`✅ Loan ${loanId} status updated to ${newStatus} successfully`);
+        return JSON.stringify(loan);
+    }
+    //  * Updates the status of a loan record.
+    //  * Accessible by Debtor (for ACCEPTED/REJECTED) and Creditor (for DEFAULT/NPA).
+    //  * @param {Context} ctx - Transaction context
+    //  * @param {string} loanId - Loan identifier
+    //  * @param {string} newStatus - The new status for the loan (e.g., 'ACCEPTED', 'REJECTED', 'DEFAULT', 'NPA')
+    //  * @param {string} reason - Reason for the status update (optional)
+    //  */
+    async updateLoanStatus(ctx, loanId, newStatus, reason) {
+        console.info(`=== Updating Loan ${loanId} Status to ${newStatus} ===`);
+
+        const clientIdentity = ctx.clientIdentity;
+        const actorId = clientIdentity.getID();
+        const mspId = clientIdentity.getMSPID();
+
+        const loan = await this.getLoan(ctx, loanId);
+
+        // Access control for status updates
+        if (newStatus === 'ACCEPTED' || newStatus === 'REJECTED') {
+            if (mspId !== 'DebtorMSP' || loan.debtorId !== actorId) {
+                throw new Error('Only the intended Debtor can accept or reject this loan');
+            }
+            if (loan.status !== 'PROPOSED') {
+                throw new Error(`Loan ${loanId} is not in PROPOSED status. Current status: ${loan.status}`);
+            }
+        } else if (newStatus === 'DEFAULT' || newStatus === 'NPA') {
+            if (mspId !== 'CreditorMSP' || loan.creditorId !== actorId) {
+                throw new Error('Only the Creditor who proposed the loan can set its status to DEFAULT or NPA');
+            }
+            if (loan.status === 'REJECTED') {
+                throw new Error(`Cannot change status of a REJECTED loan to ${newStatus}`);
+            }
+        } else {
+            throw new Error(`Invalid new status: ${newStatus}`);
+        }
+
+        loan.status = newStatus;
+        loan.currentLoanStatus = newStatus; // Update current status field as well
+
+        const timestamp = new Date().toISOString();
+        let actionDetails = `Loan status updated to ${newStatus}`;
+
+        if (newStatus === 'ACCEPTED') {
+            loan.acceptedAt = timestamp;
+            actionDetails = `Loan accepted by debtor`;
+        } else if (newStatus === 'REJECTED') {
+            loan.rejectedAt = timestamp;
+            loan.rejectionReason = reason;
+            actionDetails = `Loan rejected: ${reason}`;
+        } else if (newStatus === 'DEFAULT') {
+            loan.defaultedAt = timestamp;
+            actionDetails = `Loan marked as DEFAULT: ${reason}`;
+        } else if (newStatus === 'NPA') {
+            loan.npaAt = timestamp;
+            actionDetails = `Loan marked as NPA: ${reason}`;
+        }
+
+        loan.transactionHistory.push({
+            action: `LOAN_${newStatus.toUpperCase()}`,
+            actor: actorId,
+            timestamp: timestamp,
+            details: actionDetails
+        });
+
+        await ctx.stub.putState(loanId, Buffer.from(JSON.stringify(loan)));
+
+        ctx.stub.setEvent(`LoanStatusUpdated`, Buffer.from(JSON.stringify({
+            loanId: loanId,
+            actor: actorId,
+            newStatus: newStatus,
+            reason: reason || ''
+        })));
+
+        console.info(`✅ Loan ${loanId} status updated to ${newStatus} successfully`);
+        return JSON.stringify(loan);
+    }
+    /**
+     * Creditor submits a new loan record with comprehensive details and document hashes.
+     * This function replaces/extends the proposeLoan functionality.
+     * @param {Context} ctx - Transaction context
+     * @param {string} loanId - Unique loan identifier
+     * @param {string} loanAmount - Loan amount
+     * @param {string} interestRate - Interest rate
+     * @param {string} debtorId - Debtor identifier
+     * @param {string} maturityDate - Loan maturity date (YYYY-MM-DD)
+     * @param {string} currentLoanStatus - Initial status of the loan (e.g., 'PROPOSED', 'ACTIVE')
+     * @param {string} assetRecords - Description of assets/collateral
+     * @param {string} balanceSheetSummary - Summary of balance sheet
+     * @param {string} existingLiabilities - Other outstanding liabilities
+     * @param {string} documentHashesJson - JSON string of document hashes (IPFS CIDs)
+     */
+    async submitLoanRecord(ctx, loanId, loanAmount, interestRate, debtorId, maturityDate, currentLoanStatus, assetRecords, balanceSheetSummary, existingLiabilities, documentHashesJson) {
+        console.info('=== CREDITOR: Submitting New Loan Record ===');
+
+        const creditorId = ctx.clientIdentity.getID();
+        const mspId = ctx.clientIdentity.getMSPID();
+
+        if (mspId !== 'CreditorMSP') {
+            throw new Error('Only Creditor organization can submit new loan records');
+        }
+
+        const exists = await this.loanExists(ctx, loanId);
+        if (exists) {
+            throw new Error(`Loan ${loanId} already exists`);
+        }
+
+        const documentHashes = JSON.parse(documentHashesJson);
+
+        const loan = {
+            loanId: loanId,
+            amount: parseFloat(loanAmount),
+            interestRate: parseFloat(interestRate),
+            creditorId: creditorId,
+            creditorMSP: mspId,
+            debtorId: debtorId,
+            status: currentLoanStatus,
+            maturityDate: maturityDate,
+            currentLoanStatus: currentLoanStatus,
+            assetRecords: assetRecords,
+            balanceSheetSummary: balanceSheetSummary,
+            existingLiabilities: existingLiabilities,
+            documentHashes: documentHashes, // Object: { "documentType": "ipfsCid" }
+            proposedAt: new Date().toISOString(),
+            acceptedAt: null,
+            rejectedAt: null,
+            transactionHistory: [{
+                action: 'LOAN_SUBMITTED',
+                actor: creditorId,
+                timestamp: new Date().toISOString(),
+                details: `Loan of ${loanAmount} submitted to debtor ${debtorId} with initial status ${currentLoanStatus}`
+            }]
+        };
+
+        await ctx.stub.putState(loanId, Buffer.from(JSON.stringify(loan)));
+
+        ctx.stub.setEvent('LoanSubmitted', Buffer.from(JSON.stringify({
+            loanId: loanId,
+            creditorId: creditorId,
+            debtorId: debtorId,
+            amount: loanAmount,
+            status: currentLoanStatus
+        })));
+
+        console.info(`✅ Loan ${loanId} submitted successfully by creditor`);
         return JSON.stringify(loan);
     }
 
     /**
-     * Debtor rejects a loan proposal
+     * Updates the status of a loan record.
+     * Accessible by Debtor (for ACCEPTED/REJECTED) and Creditor (for DEFAULT/NPA).
+     * @param {Context} ctx - Transaction context
+     * @param {string} loanId - Loan identifier
+     * @param {string} newStatus - The new status for the loan (e.g., 'ACCEPTED', 'REJECTED', 'DEFAULT', 'NPA')
+     * @param {string} reason - Reason for the status update (optional)
+     */
+    async updateLoanStatus(ctx, loanId, newStatus, reason) {
+        console.info(`=== Updating Loan ${loanId} Status to ${newStatus} ===`);
+
+        const clientIdentity = ctx.clientIdentity;
+        const actorId = clientIdentity.getID();
+        const mspId = clientIdentity.getMSPID();
+
+        const loan = await this.getLoan(ctx, loanId);
+
+        // Access control for status updates
+        if (newStatus === 'ACCEPTED' || newStatus === 'REJECTED') {
+            if (mspId !== 'DebtorMSP' || loan.debtorId !== actorId) {
+                throw new Error('Only the intended Debtor can accept or reject this loan');
+            }
+            if (loan.status !== 'PROPOSED') {
+                throw new Error(`Loan ${loanId} is not in PROPOSED status. Current status: ${loan.status}`);
+            }
+        } else if (newStatus === 'DEFAULT' || newStatus === 'NPA') {
+            if (mspId !== 'CreditorMSP' || loan.creditorId !== actorId) {
+                throw new Error('Only the Creditor who proposed the loan can set its status to DEFAULT or NPA');
+            }
+            if (loan.status === 'REJECTED') {
+                throw new Error(`Cannot change status of a REJECTED loan to ${newStatus}`);
+            }
+        } else {
+            throw new Error(`Invalid new status: ${newStatus}`);
+        }
+
+        loan.status = newStatus;
+        loan.currentLoanStatus = newStatus; // Update current status field as well
+
+        const timestamp = new Date().toISOString();
+        let actionDetails = `Loan status updated to ${newStatus}`;
+
+        if (newStatus === 'ACCEPTED') {
+            loan.acceptedAt = timestamp;
+            actionDetails = `Loan accepted by debtor`;
+        } else if (newStatus === 'REJECTED') {
+            loan.rejectedAt = timestamp;
+            loan.rejectionReason = reason;
+            actionDetails = `Loan rejected: ${reason}`;
+        } else if (newStatus === 'DEFAULT') {
+            loan.defaultedAt = timestamp;
+            actionDetails = `Loan marked as DEFAULT: ${reason}`;
+        } else if (newStatus === 'NPA') {
+            loan.npaAt = timestamp;
+            actionDetails = `Loan marked as NPA: ${reason}`;
+        }
+
+        loan.transactionHistory.push({
+            action: `LOAN_${newStatus.toUpperCase()}`,
+            actor: actorId,
+            timestamp: timestamp,
+            details: actionDetails
+        });
+
+        await ctx.stub.putState(loanId, Buffer.from(JSON.stringify(loan)));
+
+        ctx.stub.setEvent(`LoanStatusUpdated`, Buffer.from(JSON.stringify({
+            loanId: loanId,
+            actor: actorId,
+            newStatus: newStatus,
+            reason: reason || ''
+        })));
+
+        console.info(`✅ Loan ${loanId} status updated to ${newStatus} successfully`);
+        return JSON.stringify(loan);
+    }
+
+    /**
+     * Debtor accepts a loan proposal.
+     * @param {Context} ctx - Transaction context
+     * @param {string} loanId - Loan identifier
+     * @param {string} additionalDocumentHashesJson - Additional document hashes from debtor (JSON string)
+     */
+    async acceptLoan(ctx, loanId, additionalDocumentHashesJson) {
+        console.info('=== DEBTOR: Accepting Loan ===');
+        const loan = await this.getLoan(ctx, loanId);
+        const debtorId = ctx.clientIdentity.getID();
+
+        if (loan.debtorId !== debtorId) {
+            throw new Error(`Loan ${loanId} is not intended for this debtor`);
+        }
+
+        // Add debtor document hashes
+        if (additionalDocumentHashesJson) {
+            const debtorDocs = JSON.parse(additionalDocumentHashesJson);
+            if (!loan.documentHashes) {
+                loan.documentHashes = {};
+            }
+            Object.assign(loan.documentHashes, debtorDocs); // Merge new docs
+            await ctx.stub.putState(loanId, Buffer.from(JSON.stringify(loan))); // Update ledger with new docs
+        }
+
+        return this.updateLoanStatus(ctx, loanId, 'ACCEPTED', 'Debtor accepted the loan proposal');
+    }
+
+    /**
+     * Debtor rejects a loan proposal.
      * @param {Context} ctx - Transaction context
      * @param {string} loanId - Loan identifier
      * @param {string} rejectionReason - Reason for rejection
      */
     async rejectLoan(ctx, loanId, rejectionReason) {
         console.info('=== DEBTOR: Rejecting Loan ===');
-        
-        // Get debtor identity
-        const debtorId = ctx.clientIdentity.getID();
-        const mspId = ctx.clientIdentity.getMSPID();
-        
-        // Validate debtor authorization
-        if (mspId !== 'DebtorMSP') {
-            throw new Error('Only Debtor organization can reject loans');
-        }
-
-        // Get loan
         const loan = await this.getLoan(ctx, loanId);
-        
-        // Validate loan status
-        if (loan.status !== 'PROPOSED') {
-            throw new Error(`Loan ${loanId} is not in PROPOSED status. Current status: ${loan.status}`);
+        const debtorId = ctx.clientIdentity.getID();
+
+        if (loan.debtorId !== debtorId) {
+            throw new Error(`Loan ${loanId} is not intended for this debtor`);
         }
 
-        // Update loan
-        loan.status = 'REJECTED';
-        loan.rejectedAt = new Date().toISOString();
-        loan.rejectionReason = rejectionReason;
-
-        // Update transaction history
-        loan.transactionHistory.push({
-            action: 'LOAN_REJECTED',
-            actor: debtorId,
-            timestamp: new Date().toISOString(),
-            details: `Loan rejected: ${rejectionReason}`
-        });
-
-        // Store updated loan
-        await ctx.stub.putState(loanId, Buffer.from(JSON.stringify(loan)));
-        
-        // Emit event
-        ctx.stub.setEvent('LoanRejected', Buffer.from(JSON.stringify({
-            loanId: loanId,
-            creditorId: loan.creditorId,
-            debtorId: debtorId,
-            amount: loan.amount,
-            status: 'REJECTED',
-            reason: rejectionReason
-        })));
-
-        console.info(`✅ Loan ${loanId} rejected by debtor`);
-        return JSON.stringify(loan);
+        return this.updateLoanStatus(ctx, loanId, 'REJECTED', rejectionReason);
     }
 
     // ==========================================
@@ -334,14 +712,19 @@ class LoanProcessorContract extends Contract {
      * Verify document hash integrity
      * @param {Context} ctx - Transaction context
      * @param {string} loanId - Loan identifier
-     * @param {string} documentType - Type of document
-     * @param {string} providedHash - Hash to verify
+    /**
+     * Verify document hash integrity
+     * @param {Context} ctx - Transaction context
+     * @param {string} loanId - Loan identifier
+     * @param {string} documentType - Type of document (e.g., 'debtRecords', 'balanceSheet')
+     * @param {string} providedHash - Hash (IPFS CID) to verify
      */
     async verifyDocumentHash(ctx, loanId, documentType, providedHash) {
         const loan = await this.getLoan(ctx, loanId);
         
+        // Ensure documentHashes is an object and contains the documentType
         let storedHash = null;
-        if (loan.documentHashes[documentType]) {
+        if (loan.documentHashes && typeof loan.documentHashes === 'object' && loan.documentHashes[documentType]) {
             storedHash = loan.documentHashes[documentType];
         }
         
@@ -359,3 +742,4 @@ class LoanProcessorContract extends Contract {
 }
 
 module.exports = LoanProcessorContract;
+

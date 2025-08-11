@@ -9,7 +9,7 @@ echo "=========================================="
 function stopContainers() {
     echo "🐳 Stopping Docker containers..."
     
-    docker-compose -f network/docker/docker-compose-iu.yaml down --volumes --remove-orphans
+    docker-compose -f network/docker-compose.yaml down --volumes --remove-orphans
     
     if [ $? -eq 0 ]; then
         echo "✅ Docker containers stopped"

@@ -19,27 +19,27 @@ app.use(bodyParser.urlencoded({ extended: true }));
 // MSP Management Routes
 app.use('/api/msp', mspRoutes);
 
-// Fabric Network Configuration (env overridable)
-const financialOperationsChannel = process.env.FABRIC_CHANNEL_PRIMARY || 'financial-operations-channel';
-const auditComplianceChannel = process.env.FABRIC_CHANNEL_AUDIT || 'audit-compliance-channel';
-const chaincodeName = process.env.FABRIC_CHAINCODE || 'iu-basic';
+// Fabric Network Configuration
+const financialOperationsChannel = 'financial-operations-channel';
+const auditComplianceChannel = 'audit-compliance-channel';
+const chaincodeName = 'iu-basic';
 
 // Organization configurations
 const orgConfigs = {
     creditor: {
-        mspId: process.env.CREDITOR_MSP || 'CreditorMSP',
-        connectionProfilePath: process.env.CREDITOR_CCP || path.resolve(__dirname, '..', 'network', 'organizations', 'peerOrganizations', 'creditor.iu-network.com', 'connection-creditor.json'),
-        walletPath: process.env.CREDITOR_WALLET || path.join(__dirname, 'wallet-creditor')
+        mspId: 'CreditorMSP',
+        connectionProfilePath: path.resolve(__dirname, '..', 'network', 'organizations', 'peerOrganizations', 'creditor.iu-network.com', 'connection-creditor.json'),
+        walletPath: path.join(__dirname, 'wallet-creditor')
     },
     debtor: {
-        mspId: process.env.DEBTOR_MSP || 'DebtorMSP',
-        connectionProfilePath: process.env.DEBTOR_CCP || path.resolve(__dirname, '..', 'network', 'organizations', 'peerOrganizations', 'debtor.iu-network.com', 'connection-debtor.json'),
-        walletPath: process.env.DEBTOR_WALLET || path.join(__dirname, 'wallet-debtor')
+        mspId: 'DebtorMSP',
+        connectionProfilePath: path.resolve(__dirname, '..', 'network', 'organizations', 'peerOrganizations', 'debtor.iu-network.com', 'connection-debtor.json'),
+        walletPath: path.join(__dirname, 'wallet-debtor')
     },
     admin: {
-        mspId: process.env.ADMIN_MSP || 'AdminMSP',
-        connectionProfilePath: process.env.ADMIN_CCP || path.resolve(__dirname, '..', 'network', 'organizations', 'peerOrganizations', 'admin.iu-network.com', 'connection-admin.json'),
-        walletPath: process.env.ADMIN_WALLET || path.join(__dirname, 'wallet-admin')
+        mspId: 'AdminMSP',
+        connectionProfilePath: path.resolve(__dirname, '..', 'network', 'organizations', 'peerOrganizations', 'admin.iu-network.com', 'connection-admin.json'),
+        walletPath: path.join(__dirname, 'wallet-admin')
     }
 };
 
