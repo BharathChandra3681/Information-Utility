@@ -770,6 +770,95 @@ class FinancialInformationUtilityContract extends Contract {
         }
     }
 
+    /**
+     * Store a document hash on the ledger
+     * @param {Context} ctx - The transaction context
+     * @param {String} documentId - Unique document identifier
+     * @param {String} sha256Hash - SHA-256 hash of the document content (hex)
+     * @param {String} owner - Owner identifier (free-form)
+     * @param {String} metadataJson - Optional JSON string with extra metadata
+     * @returns {String} Created document hash record
+     */
+    async StoreDocumentHash(ctx, documentId, sha256Hash, owner, metadataJson) {
+        try {
+            const clientMSPID = ctx.clientIdentity.getMSPID();
+
+            // Allow AdminMSP and CreditorMSP to store document hashes
+            if (clientMSPID !== 'AdminMSP' && clientMSPID !== 'CreditorMSP') {
+                throw new Error(`Organization ${clientMSPID} is not authorized to store document hashes`);
+            }
+
+            const exists = await this.DocumentHashExists(ctx, documentId);
+            if (exists) {
+                throw new Error(`Document hash with id ${documentId} already exists`);
+            }
+
+            let metadata = {};
+            if (metadataJson && metadataJson.length > 0) {
+                try {
+                    metadata = JSON.parse(metadataJson);
+                } catch (e) {
+                    throw new Error('metadataJson must be valid JSON');
+                }
+            }
+
+            const documentHashRecord = {
+                docType: 'DocumentHash',
+                documentId: documentId,
+                sha256: sha256Hash,
+                owner: owner,
+                createdBy: clientMSPID,
+                createdAt: new Date().toISOString(),
+                metadata: metadata
+            };
+
+            await ctx.stub.putState(documentId, Buffer.from(JSON.stringify(documentHashRecord)));
+
+            await this.createAuditEntry(
+                ctx,
+                documentId,
+                'DOCUMENT_HASH_STORED',
+                clientMSPID,
+                `Document hash stored for ${documentId}`
+            );
+
+            ctx.stub.setEvent('DocumentHashStored', Buffer.from(JSON.stringify({
+                documentId: documentId,
+                sha256: sha256Hash,
+                owner: owner
+            })));
+
+            return JSON.stringify(documentHashRecord);
+        } catch (error) {
+            throw new Error(`Failed to store document hash: ${error.message}`);
+        }
+    }
+
+    /**
+     * Read a stored document hash
+     * @param {Context} ctx - The transaction context
+     * @param {String} documentId - Document identifier
+     * @returns {String} Document hash record
+     */
+    async ReadDocumentHash(ctx, documentId) {
+        const data = await ctx.stub.getState(documentId);
+        if (!data || data.length === 0) {
+            throw new Error(`Document hash ${documentId} does not exist`);
+        }
+        return data.toString();
+    }
+
+    /**
+     * Check if a document hash record exists
+     * @param {Context} ctx - The transaction context
+     * @param {String} documentId - Document identifier
+     * @returns {Boolean}
+     */
+    async DocumentHashExists(ctx, documentId) {
+        const data = await ctx.stub.getState(documentId);
+        return data && data.length > 0;
+    }
+
 }
 
 module.exports = FinancialInformationUtilityContract;

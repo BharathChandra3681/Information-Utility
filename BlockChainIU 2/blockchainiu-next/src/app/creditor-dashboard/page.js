@@ -16,6 +16,12 @@ export default function CreditorDashboard() {
     existingLiabilities: ''
   });
   const [dropdownStatus, setDropdownStatus] = useState({});
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [loanIdForUpload, setLoanIdForUpload] = useState('');
+  const [uploadResponse, setUploadResponse] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [myDocs, setMyDocs] = useState([]);
+  const [loadingDocs, setLoadingDocs] = useState(false);
 
   useEffect(() => {
     // Check logged in user role
@@ -27,6 +33,8 @@ export default function CreditorDashboard() {
     // Load submitted records from localStorage
     const records = JSON.parse(localStorage.getItem('submittedRecords')) || [];
     setSubmittedRecords(records);
+    // Load my documents list
+    loadMyDocs(loggedInUser?.email);
   }, []);
 
   const logout = () => {
@@ -80,14 +88,24 @@ export default function CreditorDashboard() {
       existingLiabilities
     } = formData;
 
-    if (!borrowerName || !loanAmount || !loanStartDate || !loanStatus) {
-      alert('Please fill in all required fields.');
+    const isBlank = (s) => !s || !String(s).trim();
+    // Robust cross-browser date validation: accept ISO or any parseable date
+    const isValidDate = (s) => {
+      if (isBlank(s)) return false;
+      const str = String(s).trim();
+      const iso = /^\d{4}-\d{2}-\d{2}$/.test(str);
+      const parsed = new Date(str);
+      return iso || !Number.isNaN(parsed.getTime());
+    };
+
+    if (isBlank(borrowerName) || isBlank(loanAmount) || !isValidDate(loanStartDate) || isBlank(loanStatus)) {
+      alert('Please fill in all required fields (Borrower, Amount, Start Date, Status).');
       return;
     }
 
     const newRecord = {
-      borrowerName,
-      loanAmount,
+      borrowerName: String(borrowerName).trim(),
+      loanAmount: String(loanAmount).trim(),
       loanStartDate,
       maturityDate,
       loanStatus,
@@ -114,6 +132,58 @@ export default function CreditorDashboard() {
     });
 
     setActiveTab('records');
+  };
+
+  const handleDocumentUpload = async (e) => {
+    e.preventDefault();
+    try {
+      if (!selectedFile) {
+        alert('Please choose a document file');
+        return;
+      }
+      setIsUploading(true);
+      setUploadResponse(null);
+      const loggedInUser = JSON.parse(localStorage.getItem('loggedInUser'));
+      const owner = loggedInUser?.email || 'unknown-owner';
+      const form = new FormData();
+      form.append('file', selectedFile);
+      form.append('owner', owner);
+      if (loanIdForUpload) form.append('loanId', loanIdForUpload);
+
+      const res = await fetch('/api/documents/upload', {
+        method: 'POST',
+        body: form,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(err.error || 'Upload failed');
+      }
+      const data = await res.json();
+      setUploadResponse(data);
+      alert('Document uploaded for verification');
+      setSelectedFile(null);
+      setLoanIdForUpload('');
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const loadMyDocs = async (email) => {
+    try {
+      setLoadingDocs(true);
+      const loggedInUser = JSON.parse(localStorage.getItem('loggedInUser'));
+      const owner = email || loggedInUser?.email;
+      if (!owner) return;
+      const res = await fetch(`/api/documents?owner=${encodeURIComponent(owner)}`);
+      const data = await res.json();
+      setMyDocs(Array.isArray(data) ? data : []);
+    } catch (_) {
+      setMyDocs([]);
+    } finally {
+      setLoadingDocs(false);
+    }
   };
 
   return (
@@ -208,7 +278,7 @@ export default function CreditorDashboard() {
           <div className="panel bg-white rounded-lg shadow p-6">
             <h3 className="font-bold text-lg mb-4">+ Submit New Loan Record</h3>
             <p className="mb-4">Record new loan and financial data on the blockchain for borrower verification</p>
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleSubmit} noValidate>
               <div className="form-group mb-4">
                 <label>Borrower Name *</label>
                 <input
@@ -308,6 +378,37 @@ export default function CreditorDashboard() {
               </div>
             </form>
           </div>
+
+          <div className="panel bg-white rounded-lg shadow p-6 mt-6">
+            <h3 className="font-bold text-lg mb-4">+ Upload Supporting Documents</h3>
+            <p className="mb-4">Upload loan-related documents for admin verification. Hash will be anchored on-chain after approval.</p>
+            <form onSubmit={handleDocumentUpload} className="space-y-4" noValidate>
+              <div>
+                <label className="block mb-1">Loan ID (optional)</label>
+                <input
+                  type="text"
+                  value={loanIdForUpload}
+                  onChange={(e) => setLoanIdForUpload(e.target.value)}
+                  placeholder="e.g., LOAN001"
+                  className="w-full p-3 border rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block mb-1">Select Document (optional)</label>
+                <input
+                  type="file"
+                  accept="application/pdf,image/*"
+                  onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                  className="w-full"
+                />
+              </div>
+              <div className="flex justify-end gap-3">
+                <button type="submit" disabled={isUploading} className="bg-blue-600 text-white rounded-lg px-4 py-2 hover:bg-blue-700 disabled:opacity-50">
+                  {isUploading ? 'Uploading...' : 'Upload for Verification'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 
@@ -372,6 +473,60 @@ export default function CreditorDashboard() {
                 </div>
               </div>
             ))}
+          </div>
+
+          <div className="panel bg-white rounded-lg shadow p-6 mt-6">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-bold text-lg">My Documents</h3>
+              <button onClick={() => loadMyDocs()} className="bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700">
+                {loadingDocs ? 'Refreshing...' : 'Refresh'}
+              </button>
+            </div>
+            <p className="mb-4">Documents you uploaded. Admin will verify and anchor their hashes on-chain.</p>
+            <div className="overflow-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead className="bg-blue-100 text-blue-800">
+                  <tr>
+                    <th className="p-2 text-left">ID</th>
+                    <th className="p-2 text-left">Filename</th>
+                    <th className="p-2 text-left">Loan ID</th>
+                    <th className="p-2 text-left">Size</th>
+                    <th className="p-2 text-left">Status</th>
+                    <th className="p-2 text-left">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {myDocs.map((d) => (
+                    <tr key={d.id} className="border-b border-gray-200">
+                      <td className="p-2">{d.id}</td>
+                      <td className="p-2">{d.filename}</td>
+                      <td className="p-2">{d.loan_id || '-'}</td>
+                      <td className="p-2">{Math.round(d.size_bytes / 1024)} KB</td>
+                      <td className="p-2">
+                        {d.verified ? (
+                          <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full font-bold">Verified</span>
+                        ) : (
+                          <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full font-bold">Pending</span>
+                        )}
+                      </td>
+                      <td className="p-2">
+                        <a
+                          href={`/api/documents/${encodeURIComponent(d.id)}/download`}
+                          className="bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700"
+                        >
+                          Download
+                        </a>
+                      </td>
+                    </tr>
+                  ))}
+                  {!myDocs.length && (
+                    <tr>
+                      <td className="p-3 text-center text-gray-500" colSpan={6}>No documents uploaded yet</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

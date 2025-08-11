@@ -94,7 +94,6 @@ services:
       - ORDERER_ADMIN_TLS_CERTIFICATE=/var/hyperledger/orderer/tls/server.crt
       - ORDERER_ADMIN_TLS_PRIVATEKEY=/var/hyperledger/orderer/tls/server.key
       - ORDERER_ADMIN_TLS_ROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
-      - ORDERER_ADMIN_TLS_CLIENTROOTCAS=[/var/hyperledger/orderer/tls/ca.crt]
       - ORDERER_ADMIN_LISTENADDRESS=0.0.0.0:7053
       - ORDERER_OPERATIONS_LISTENADDRESS=orderer.iu-network.com:9443
       - ORDERER_METRICS_PROVIDER=prometheus
@@ -104,6 +103,7 @@ services:
       - ./orderer.yaml:/etc/hyperledger/peercfg/orderer.yaml
       - ./crypto-config/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/msp:/var/hyperledger/orderer/msp
       - ./crypto-config/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/tls/:/var/hyperledger/orderer/tls
+      - ./channel-artifacts:/channel-artifacts:ro
       - orderer.iu-network.com:/var/hyperledger/production/orderer
     ports:
       - 7050:7050
@@ -274,8 +274,9 @@ services:
       - /var/run/docker.sock:/host/var/run/docker.sock
       - ./crypto-config:/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config
       - ./scripts:/opt/gopath/src/github.com/hyperledger/fabric/peer/scripts
-      - ./chaincode:/opt/gopath/src/github.com/chaincode
+      - ../chaincode:/opt/gopath/src/github.com/chaincode
       - ./configtx.yaml:/etc/hyperledger/peercfg/configtx.yaml
+      - ./core.yaml:/etc/hyperledger/peercfg/core.yaml
       - ./channel-artifacts:/opt/gopath/src/github.com/hyperledger/fabric/peer/channel-artifacts
     depends_on:
       - peer0.creditor.iu-network.com

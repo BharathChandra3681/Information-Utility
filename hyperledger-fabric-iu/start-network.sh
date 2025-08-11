@@ -2,10 +2,23 @@
 
 # Start Financial Information Utility Network
 
-set -e
+set -euo pipefail
 
 NETWORK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$NETWORK_DIR"
+
+# Prefer Docker Compose v2
+if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+  COMPOSE_CMD=(docker compose)
+elif command -v docker-compose >/dev/null 2>&1; then
+  COMPOSE_CMD=(docker-compose)
+else
+  echo "Error: Docker Compose not found. Install Docker Desktop and ensure 'docker compose' works."
+  exit 127
+fi
+
+# Preflight checks for Docker
+command -v docker >/dev/null 2>&1 || { echo "Error: Docker is not installed or not in PATH. Install Docker Desktop and ensure 'docker' works."; exit 127; }
 
 echo "Starting Financial Information Utility Hyperledger Fabric Network..."
 echo "Network Directory: $NETWORK_DIR"
@@ -21,15 +34,13 @@ printStatus() {
 # Clean up function
 cleanup() {
     echo "Cleaning up previous network..."
-    docker-compose -f network/docker-compose.yaml down --volumes --remove-orphans
-    docker system prune -f
-    
+    "${COMPOSE_CMD[@]}" -f network/docker-compose.yaml down --volumes --remove-orphans || true
+    docker system prune -f || true
     # Remove generated certificates and channel artifacts
-    rm -rf network/organizations/peerOrganizations
-    rm -rf network/organizations/ordererOrganizations
-    rm -rf network/channel-artifacts
-    rm -rf application/wallet*
-    
+    rm -rf network/organizations/peerOrganizations || true
+    rm -rf network/organizations/ordererOrganizations || true
+    rm -rf network/channel-artifacts || true
+    rm -rf application/wallet* || true
     echo "Cleanup completed"
 }
 
@@ -79,27 +90,27 @@ generateChannelArtifacts() {
     
     echo "FABRIC_CFG_PATH: $FABRIC_CFG_PATH"
     
-    # Generate genesis block for orderer
+    # Generate genesis block for orderer (no system channel used at runtime)
     echo "Generating genesis block..."
-    if ! ./network/bin/configtxgen -profile IUNetworkOrdererGenesis -channelID system-channel -outputBlock ./network/channel-artifacts/genesis.block; then
+    if ! ./network/bin/configtxgen -profile IUOrdererGenesis -channelID system-channel -outputBlock ./network/channel-artifacts/genesis.block; then
         echo "Error: Failed to generate genesis block"
         exit 1
     fi
     
-    # Generate channel configuration transactions
-    echo "Generating financial operations channel transaction..."
-    if ! ./network/bin/configtxgen -profile FinancialOperationsChannel -outputCreateChannelTx ./network/channel-artifacts/financial-operations-channel.tx -channelID financial-operations-channel; then
-        echo "Error: Failed to generate financial operations channel transaction"
+    # Participation API requires channel genesis blocks (not CreateChannelTx)
+    echo "Generating financial operations channel genesis block..."
+    if ! ./network/bin/configtxgen -profile FinancialOperationsChannel -outputBlock ./network/channel-artifacts/financial-operations-channel.block -channelID financial-operations-channel; then
+        echo "Error: Failed to generate financial operations channel block"
         exit 1
     fi
     
-    echo "Generating audit compliance channel transaction..."
-    if ! ./network/bin/configtxgen -profile AuditComplianceChannel -outputCreateChannelTx ./network/channel-artifacts/audit-compliance-channel.tx -channelID audit-compliance-channel; then
-        echo "Error: Failed to generate audit compliance channel transaction"
+    echo "Generating audit compliance channel genesis block..."
+    if ! ./network/bin/configtxgen -profile AuditComplianceChannel -outputBlock ./network/channel-artifacts/audit-compliance-channel.block -channelID audit-compliance-channel; then
+        echo "Error: Failed to generate audit compliance channel block"
         exit 1
     fi
     
-    # Generate anchor peer transactions
+    # Generate anchor peer update transactions (applied after peers join)
     echo "Generating anchor peer transactions..."
     ./network/bin/configtxgen -profile FinancialOperationsChannel -outputAnchorPeersUpdate ./network/channel-artifacts/CreditorMSPanchors.tx -channelID financial-operations-channel -asOrg CreditorMSP
     ./network/bin/configtxgen -profile FinancialOperationsChannel -outputAnchorPeersUpdate ./network/channel-artifacts/DebtorMSPanchors.tx -channelID financial-operations-channel -asOrg DebtorMSP
@@ -111,38 +122,65 @@ generateChannelArtifacts() {
 # Start the network
 startNetwork() {
     printStatus "STARTING DOCKER CONTAINERS"
-    
-    # Start docker containers
     echo "Starting Docker containers..."
-    docker-compose -f network/docker-compose.yaml up -d
-    
-    # Wait for containers to start
+    "${COMPOSE_CMD[@]}" -f network/docker-compose.yaml up -d
     echo "Waiting for network to start..."
-    sleep 10
-    
-    # Check container status
+    sleep 5
     echo "Container status:"
-    docker-compose -f network/docker-compose.yaml ps
+    "${COMPOSE_CMD[@]}" -f network/docker-compose.yaml ps
 }
 
-# Create channels and join peers
+# Create channels and join peers (orderer via osnadmin, peers via CLI)
 createChannels() {
     printStatus "CREATING CHANNELS"
-    
-    # Copy the docker compose file for CLI operations
-    echo "Creating channels using CLI container..."
-    
-    # Execute channel creation script in CLI container
-    docker exec cli bash -c "cd /opt/gopath/src/github.com/hyperledger/fabric/peer && chmod +x scripts/createChannel.sh && ./scripts/createChannel.sh"
+    echo "Creating channels using Orderer Channel Participation API..."
+
+    local ORDERER_CA_IN_CLI=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/tls/ca.crt
+    local ORDERER_TLS_CERT_IN_CLI=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/tls/server.crt
+    local ORDERER_TLS_KEY_IN_CLI=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/tls/server.key
+    local CHDIR=/opt/gopath/src/github.com/hyperledger/fabric/peer/channel-artifacts
+
+    # Wait for admin endpoint to be ready (use TLS client auth)
+    echo "Waiting for orderer admin endpoint (7053) to be ready..."
+    for i in {1..30}; do
+      if docker exec cli bash -lc "osnadmin channel list -o orderer.iu-network.com:7053 --ca-file ${ORDERER_CA_IN_CLI} --client-cert ${ORDERER_TLS_CERT_IN_CLI} --client-key ${ORDERER_TLS_KEY_IN_CLI} >/dev/null 2>&1"; then
+        echo "Admin endpoint is ready"
+        break
+      fi
+      sleep 2
+      if [ "$i" -eq 30 ]; then
+        echo "Error: Orderer admin endpoint not ready"
+        exit 1
+      fi
+    done
+
+    echo "Joining orderer to financial-operations-channel..."
+    docker exec cli osnadmin channel join \
+      --channelID financial-operations-channel \
+      --config-block ${CHDIR}/financial-operations-channel.block \
+      --orderer-address orderer.iu-network.com:7053 \
+      --ca-file ${ORDERER_CA_IN_CLI} \
+      --client-cert ${ORDERER_TLS_CERT_IN_CLI} \
+      --client-key ${ORDERER_TLS_KEY_IN_CLI}
+
+    echo "Joining orderer to audit-compliance-channel..."
+    docker exec cli osnadmin channel join \
+      --channelID audit-compliance-channel \
+      --config-block ${CHDIR}/audit-compliance-channel.block \
+      --orderer-address orderer.iu-network.com:7053 \
+      --ca-file ${ORDERER_CA_IN_CLI} \
+      --client-cert ${ORDERER_TLS_CERT_IN_CLI} \
+      --client-key ${ORDERER_TLS_KEY_IN_CLI}
+
+    echo "Having peers join channels and update anchors via CLI container..."
+    docker exec -e SKIP_ORDERER_JOIN=1 cli bash -c "cd /opt/gopath/src/github.com/hyperledger/fabric/peer && chmod +x scripts/createChannel.sh && ./scripts/createChannel.sh"
 }
 
 # Deploy chaincode
 deployChaincode() {
     printStatus "DEPLOYING CHAINCODE"
-    
     echo "Installing and instantiating chaincode..."
-    
-    # Execute chaincode deployment script in CLI container
+    # Execute chaincode deployment script entirely within CLI
     docker exec cli bash -c "cd /opt/gopath/src/github.com/hyperledger/fabric/peer && chmod +x scripts/deployChaincode.sh && ./scripts/deployChaincode.sh"
 }
 
@@ -214,11 +252,9 @@ printNetworkInfo() {
 
 # Main execution
 main() {
-    # Parse command line arguments
     COMMAND=${1:-"up"}
-    
     case $COMMAND in
-        "up")
+        up)
             printStatus "STARTING FINANCIAL INFORMATION UTILITY NETWORK"
             cleanup
             generateCrypto
@@ -231,29 +267,23 @@ main() {
             startAPIServer
             printNetworkInfo
             ;;
-        "down")
+        down)
             printStatus "STOPPING FINANCIAL INFORMATION UTILITY NETWORK"
             cleanup
             echo "Network stopped and cleaned up"
             ;;
-        "restart")
+        restart)
             printStatus "RESTARTING FINANCIAL INFORMATION UTILITY NETWORK"
-            $0 down
+            "$0" down
             sleep 2
-            $0 up
+            "$0" up
             ;;
         *)
             echo "Usage: $0 {up|down|restart}"
-            echo "  up      - Start the Financial Information Utility network"
-            echo "  down    - Stop and clean up the network"
-            echo "  restart - Restart the network"
             exit 1
             ;;
     esac
 }
-
-# Handle script interruption
-trap cleanup EXIT
 
 # Run main function
 main "$@"

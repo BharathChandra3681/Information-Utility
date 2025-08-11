@@ -1,0 +1,71 @@
+{
+  "$schema": "https://raw.githubusercontent.com/streetsidesoftware/cspell/main/cspell.schema.json",
+  "version": "0.2",
+  "language": "en",
+  "ignorePaths": [
+    "node_modules/**",
+    ".next/**",
+    "backend/node_modules/**",
+    "public/**",
+    "**/*.lock",
+    "**/*.png",
+    "**/*.ico"
+  ],
+  "words": [
+    "blockchainiu",
+    "hyperledger",
+    "fabric",
+    "chaincode",
+    "multer",
+    "dotenv",
+    "postgres",
+    "postgresql",
+    "pg",
+    "Wallets",
+    "Gateway",
+    "asLocalhost",
+    "msP",
+    "MSP",
+    "MSPID",
+    "Creditor",
+    "Debtor",
+    "TIMESTAMPTZ",
+    "BYTEA",
+    "BIGINT",
+    "BOOLEAN",
+    "mimetype",
+    "sizebytes",
+    "ownerid",
+    "loanid",
+    "verifiedat",
+    "verifiedby",
+    "sha256",
+    "jsonb",
+    "uuid",
+    "localhost",
+    "appfinancial",
+    "iu",
+    "IUGov",
+    "CreditorMSP",
+    "DebtorMSP",
+    "AdminMSP",
+    "iubasic",
+    "compliance",
+    "ledger",
+    "InitLedger",
+    "StoreDocumentHash"
+  ],
+  "overrides": [
+    {
+      "filename": "backend/src/services/db.js",
+      "words": [
+        "PGHOST",
+        "PGPORT",
+        "PGDATABASE",
+        "PGUSER",
+        "PGPASSWORD"
+      ]
+    }
+  ]
+}
+

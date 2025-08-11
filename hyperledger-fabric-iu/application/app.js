@@ -8,6 +8,7 @@ const fs = require('fs');
 // Import MSP routes
 const mspRoutes = require('./msp-management/msp-routes');
 const documentsRoutes = require('./routes/documents');
+const kycRoutes = require('./routes/kyc');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -20,6 +21,7 @@ app.use(bodyParser.urlencoded({ extended: true }));
 // MSP Management Routes
 app.use('/api/msp', mspRoutes);
 app.use('/api/documents', documentsRoutes);
+app.use('/api/kyc', kycRoutes);
 
 // Fabric Network Configuration
 const channelName = 'iu-channel';

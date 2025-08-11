@@ -600,6 +600,23 @@ func (s *IUContract) ApproveKYC(ctx contractapi.TransactionContextInterface, kyc
 	return nil
 }
 
+// RecordAuditEvent writes minimal audit event on channel (for mirroring)
+func (s *IUContract) RecordAuditEvent(ctx contractapi.TransactionContextInterface, eventType, refId, hash, details string) error {
+	if eventType == "" || refId == "" {
+		return fmt.Errorf("eventType and refId are required")
+	}
+	rec := map[string]string{
+		"eventType": eventType,
+		"refId":     refId,
+		"hash":      hash,
+		"details":   details,
+		"timestamp": time.Now().Format(time.RFC3339Nano),
+	}
+	b, _ := json.Marshal(rec)
+	key := fmt.Sprintf("AUDIT_EVT_%s_%d", refId, time.Now().UnixNano())
+	return ctx.GetStub().PutState(key, b)
+}
+
 func main() {
 	iuChaincode, err := contractapi.NewChaincode(&IUContract{})
 	if err != nil {

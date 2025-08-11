@@ -84,7 +84,7 @@ Admin:
     RootCAs:
       - /var/hyperledger/orderer/tls/ca.crt
     ClientAuthRequired: true
-    ClientRootCAs:
+    ClientRootCAs: 
       - /var/hyperledger/orderer/tls/ca.crt
 
 # Operations service configuration  
@@ -104,4 +104,4 @@ Metrics:
     Network: udp
     Address: 127.0.0.1:8125
     WriteInterval: 30s
-    Prefix: 
+    Prefix:

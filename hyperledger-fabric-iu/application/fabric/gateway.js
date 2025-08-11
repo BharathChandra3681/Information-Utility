@@ -2,15 +2,22 @@ const { Gateway, Wallets } = require('fabric-network');
 const fs = require('fs');
 const path = require('path');
 
-async function getGateway(identityLabel) {
-  const walletPath = process.env.FABRIC_WALLET || path.join(__dirname, '..', 'wallet');
+function resolveOrgEnv(org) {
+  const upper = org.toUpperCase();
+  return {
+    walletPath: process.env[`FABRIC_WALLET_${upper}`] || process.env.FABRIC_WALLET || path.join(__dirname, '..', 'wallet'),
+    ccpPath: process.env[`FABRIC_CONNECTION_JSON_${upper}`] || process.env.FABRIC_CONNECTION_JSON
+  };
+}
+
+async function getGatewayForOrg(org, identityLabel) {
+  const { walletPath, ccpPath } = resolveOrgEnv(org);
+  if (!ccpPath) throw new Error(`Missing connection profile env for ${org}`);
   const wallet = await Wallets.newFileSystemWallet(walletPath);
   const id = await wallet.get(identityLabel);
-  if (!id) throw new Error(`Identity ${identityLabel} not found in wallet`);
+  if (!id) throw new Error(`Identity ${identityLabel} not found in wallet ${walletPath}`);
 
-  const ccpPath = process.env.FABRIC_CONNECTION_JSON;
   const ccp = JSON.parse(fs.readFileSync(ccpPath, 'utf8'));
-
   const gateway = new Gateway();
   await gateway.connect(ccp, {
     wallet,
@@ -20,11 +27,11 @@ async function getGateway(identityLabel) {
   return gateway;
 }
 
-async function getContract(identityLabel, channelName, chaincodeName) {
-  const gateway = await getGateway(identityLabel);
+async function getContractForOrg(org, identityLabel, channelName, chaincodeName) {
+  const gateway = await getGatewayForOrg(org, identityLabel);
   const network = await gateway.getNetwork(channelName);
   const contract = network.getContract(chaincodeName);
   return { gateway, contract };
 }
 
-module.exports = { getGateway, getContract };
+module.exports = { getGatewayForOrg, getContractForOrg };

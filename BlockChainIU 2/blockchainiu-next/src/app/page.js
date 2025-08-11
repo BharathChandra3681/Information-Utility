@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function Home() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -17,6 +18,9 @@ export default function Home() {
     regType: '',
     regNumber: ''
   });
+
+  // Use Next.js router for reliable client-side navigation
+  const router = useRouter();
 
   const openModal = (type) => {
     setModalType(type);
@@ -51,17 +55,23 @@ export default function Home() {
       'Admin': { email: 'admin@iu.gov.in', password: 'demo123', redirect: '/admin-dashboard' }
     };
 
-    const role = formData.role;
-    if (demoCredentials[role] && 
-        formData.email === demoCredentials[role].email && 
-        formData.password === demoCredentials[role].password) {
-      
-      localStorage.setItem('loggedInUser', JSON.stringify({ 
-        email: formData.email, 
-        role: role 
-      }));
-      
-      window.location.href = demoCredentials[role].redirect;
+    // Trim inputs to avoid accidental whitespace issues
+    const role = (formData.role || '').trim();
+    const email = (formData.email || '').trim();
+    const password = (formData.password || '').trim();
+
+    if (
+      demoCredentials[role] &&
+      email === demoCredentials[role].email &&
+      password === demoCredentials[role].password
+    ) {
+      try {
+        localStorage.setItem('loggedInUser', JSON.stringify({ email, role }));
+      } catch (_) {
+        // ignore storage errors
+      }
+      // Prefer client navigation to avoid full reload issues
+      router.push(demoCredentials[role].redirect);
     } else {
       alert('Invalid credentials or role. Please try again.');
     }

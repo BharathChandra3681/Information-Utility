@@ -34,3 +34,30 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Backend API (Express + Fabric + PostgreSQL)
+
+This repo includes a backend under `backend/` to connect to Hyperledger Fabric and store documents in PostgreSQL while anchoring their SHA-256 hash on-chain.
+
+1) Copy `.env.example` to `.env` and adjust values:
+
+```
+cd backend
+cp .env.example .env
+```
+
+2) Install backend dependencies and start the server:
+
+```
+cd backend
+npm install
+npm run start
+```
+
+3) Endpoints:
+
+- POST `/api/init-ledger` – calls chaincode `InitLedger` to add sample data
+- POST `/api/sample/document-hash` – seeds a document hash on Fabric
+- POST `/api/documents/upload` – multipart upload field `file`; stores file in Postgres and writes hash to Fabric
+- GET `/api/documents/:id` – fetch stored document metadata
+- GET `/api/documents/:id/download` – download stored document

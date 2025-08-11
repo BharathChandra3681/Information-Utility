@@ -5,6 +5,7 @@
   "main": "app.js",
   "scripts": {
     "start": "node -r dotenv/config app.js",
+    "start:financial": "node -r dotenv/config app-financial.js",
     "test": "node test.js"
   },
   "dependencies": {

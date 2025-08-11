@@ -4,6 +4,8 @@ import { useState, useEffect } from 'react';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
+  const [pendingDocs, setPendingDocs] = useState([]);
+  const [loadingPending, setLoadingPending] = useState(false);
 
   useEffect(() => {
     const loggedInUser = JSON.parse(localStorage.getItem('loggedInUser'));
@@ -20,6 +22,35 @@ export default function AdminDashboard() {
 
   const switchTab = (tab) => {
     setActiveTab(tab);
+  };
+
+  const loadPending = async () => {
+    try {
+      setLoadingPending(true);
+      const res = await fetch('/api/documents/pending/list');
+      const data = await res.json();
+      setPendingDocs(Array.isArray(data) ? data : []);
+    } catch (_) {
+      setPendingDocs([]);
+    } finally {
+      setLoadingPending(false);
+    }
+  };
+
+  const verifyDoc = async (id) => {
+    try {
+      const loggedInUser = JSON.parse(localStorage.getItem('loggedInUser'));
+      const res = await fetch(`/api/documents/${id}/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ adminId: loggedInUser?.email || 'admin' })
+      });
+      if (!res.ok) throw new Error('Verify failed');
+      await loadPending();
+      alert('Document verified and anchored');
+    } catch (e) {
+      alert(e.message);
+    }
   };
 
   return (
@@ -126,6 +157,55 @@ export default function AdminDashboard() {
                   <strong>Monthly Growth</strong><br />
                   25% increase in submissions
                 </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'all-records' && (
+            <div className="all-records bg-white p-6 rounded-lg shadow">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold">Pending Document Verifications</h2>
+                <button onClick={loadPending} className="bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700">
+                  {loadingPending ? 'Refreshing...' : 'Refresh'}
+                </button>
+              </div>
+              <div className="overflow-auto">
+                <table className="w-full border-collapse text-sm">
+                  <thead className="bg-blue-100 text-blue-800">
+                    <tr>
+                      <th className="p-2 text-left">Document ID</th>
+                      <th className="p-2 text-left">Owner</th>
+                      <th className="p-2 text-left">Loan ID</th>
+                      <th className="p-2 text-left">Filename</th>
+                      <th className="p-2 text-left">Size</th>
+                      <th className="p-2 text-left">Uploaded</th>
+                      <th className="p-2 text-left">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pendingDocs.map((d) => (
+                      <tr key={d.id} className="border-b border-gray-200">
+                        <td className="p-2">{d.id}</td>
+                        <td className="p-2">{d.owner_id}</td>
+                        <td className="p-2">{d.loan_id || '-'}</td>
+                        <td className="p-2">{d.filename}</td>
+                        <td className="p-2">{Math.round(d.size_bytes / 1024)} KB</td>
+                        <td className="p-2">{new Date(d.created_at).toLocaleString()}</td>
+                        <td className="p-2 flex gap-2">
+                          <a href={`/api/documents/${encodeURIComponent(d.id)}/download`} className="bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700">Download</a>
+                          <button onClick={() => verifyDoc(d.id)} className="bg-green-600 text-white px-3 py-1 rounded-lg hover:bg-green-700">
+                            Verify & Anchor
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {!pendingDocs.length && (
+                      <tr>
+                        <td className="p-3 text-center text-gray-500" colSpan={7}>No pending documents</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}

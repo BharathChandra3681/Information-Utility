@@ -170,6 +170,7 @@ Profiles:
 
     FinancialOperationsChannel:
         <<: *ChannelDefaults
+        Consortium: IUConsortium
         Orderer:
             <<: *OrdererDefaults
             Organizations:
@@ -187,6 +188,7 @@ Profiles:
 
     AuditComplianceChannel:
         <<: *ChannelDefaults
+        Consortium: IUConsortium
         Orderer:
             <<: *OrdererDefaults
             Organizations:
