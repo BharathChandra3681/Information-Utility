@@ -150,6 +150,10 @@ services:
       - CORE_CHAINCODE_LOGGING_SHIM=DEBUG
       - CORE_PEER_GOSSIP_USELEADERELECTION=true
       - CORE_PEER_GOSSIP_ORGLEADER=false
+      - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb.creditor.iu-network.com:5984
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME=admin
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD=adminpw
     volumes:
       - /var/run/docker.sock:/host/var/run/docker.sock
       - ./crypto-config/peerOrganizations/creditor.iu-network.com/peers/peer0.creditor.iu-network.com/msp:/etc/hyperledger/fabric/msp
@@ -202,6 +206,10 @@ services:
       - CORE_CHAINCODE_LOGGING_SHIM=DEBUG
       - CORE_PEER_GOSSIP_USELEADERELECTION=true
       - CORE_PEER_GOSSIP_ORGLEADER=false
+      - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb.debtor.iu-network.com:5984
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME=admin
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD=adminpw
     volumes:
       - /var/run/docker.sock:/host/var/run/docker.sock
       - ./crypto-config/peerOrganizations/debtor.iu-network.com/peers/peer0.debtor.iu-network.com/msp:/etc/hyperledger/fabric/msp
@@ -254,6 +262,10 @@ services:
       - CORE_CHAINCODE_LOGGING_SHIM=DEBUG
       - CORE_PEER_GOSSIP_USELEADERELECTION=true
       - CORE_PEER_GOSSIP_ORGLEADER=false
+      - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb.admin.iu-network.com:5984
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME=admin
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD=adminpw
     volumes:
       - /var/run/docker.sock:/host/var/run/docker.sock
       - ./crypto-config/peerOrganizations/admin.iu-network.com/peers/peer0.admin.iu-network.com/msp:/etc/hyperledger/fabric/msp
@@ -311,5 +323,32 @@ services:
       - peer0.creditor.iu-network.com
       - peer0.debtor.iu-network.com
       - peer0.admin.iu-network.com
+    networks:
+      - iu-network
+
+  couchdb.creditor.iu-network.com:
+    container_name: couchdb.creditor.iu-network.com
+    image: couchdb:3.2
+    environment:
+      - COUCHDB_USER=admin
+      - COUCHDB_PASSWORD=adminpw
+    ports:
+      - 5984:5984
+    networks:
+      - iu-network
+  couchdb.debtor.iu-network.com:
+    container_name: couchdb.debtor.iu-network.com
+    image: couchdb:3.2
+    environment:
+      - COUCHDB_USER=admin
+      - COUCHDB_PASSWORD=adminpw
+    networks:
+      - iu-network
+  couchdb.admin.iu-network.com:
+    container_name: couchdb.admin.iu-network.com
+    image: couchdb:3.2
+    environment:
+      - COUCHDB_USER=admin
+      - COUCHDB_PASSWORD=adminpw
     networks:
       - iu-network

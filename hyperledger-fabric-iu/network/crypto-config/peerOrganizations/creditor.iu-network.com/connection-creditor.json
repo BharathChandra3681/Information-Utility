@@ -1,0 +1,57 @@
+{
+  "name": "creditor-network",
+  "version": "1.0.0",
+  "client": { "organization": "CreditorMSP" },
+  "organizations": {
+    "CreditorMSP": {
+      "mspid": "CreditorMSP",
+      "peers": ["peer0.creditor.iu-network.com"],
+      "certificateAuthorities": ["ca.creditor.iu-network.com" ]
+    },
+    "DebtorMSP": {
+      "mspid": "DebtorMSP",
+      "peers": ["peer0.debtor.iu-network.com"],
+      "certificateAuthorities": []
+    }
+  },
+  "peers": {
+    "peer0.creditor.iu-network.com": {
+      "url": "grpcs://localhost:7051",
+      "tlsCACerts": {
+        "path": "/Users/bharathchandranangunuri/Information Utility/hyperledger-fabric-iu/network/organizations/peerOrganizations/creditor.iu-network.com/peers/peer0.creditor.iu-network.com/tls/ca.crt"
+      },
+      "grpcOptions": {
+        "ssl-target-name-override": "peer0.creditor.iu-network.com"
+      }
+    },
+    "peer0.debtor.iu-network.com": {
+      "url": "grpcs://localhost:8051",
+      "tlsCACerts": {
+        "path": "/Users/bharathchandranangunuri/Information Utility/hyperledger-fabric-iu/network/organizations/peerOrganizations/debtor.iu-network.com/peers/peer0.debtor.iu-network.com/tls/ca.crt"
+      },
+      "grpcOptions": {
+        "ssl-target-name-override": "peer0.debtor.iu-network.com"
+      }
+    }
+  },
+  "orderers": {
+    "orderer.iu-network.com": {
+      "url": "grpcs://localhost:7050",
+      "tlsCACerts": {
+        "path": "/Users/bharathchandranangunuri/Information Utility/hyperledger-fabric-iu/network/organizations/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/tls/ca.crt"
+      },
+      "grpcOptions": {
+        "ssl-target-name-override": "orderer.iu-network.com"
+      }
+    }
+  },
+  "channels": {
+    "financial-operations-channel": {
+      "orderers": ["orderer.iu-network.com"],
+      "peers": {
+        "peer0.creditor.iu-network.com": {},
+        "peer0.debtor.iu-network.com": {}
+      }
+    }
+  }
+}

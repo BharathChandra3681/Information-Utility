@@ -10,7 +10,7 @@ export default function CreditorDashboard() {
     loanAmount: '',
     loanStartDate: '',
     maturityDate: '',
-    loanStatus: '',
+    loanStatus: 'Active',
     assetRecords: '',
     balanceSheet: '',
     existingLiabilities: ''
@@ -22,6 +22,10 @@ export default function CreditorDashboard() {
   const [isUploading, setIsUploading] = useState(false);
   const [myDocs, setMyDocs] = useState([]);
   const [loadingDocs, setLoadingDocs] = useState(false);
+  // Admin and details modal state
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsRecord, setDetailsRecord] = useState(null);
 
   useEffect(() => {
     // Check logged in user role
@@ -30,12 +34,23 @@ export default function CreditorDashboard() {
       alert('Unauthorized access. Please login as Creditor.');
       window.location.href = '/';
     }
-    // Load submitted records from localStorage
-    const records = JSON.parse(localStorage.getItem('submittedRecords')) || [];
-    setSubmittedRecords(records);
+    setIsAdmin(loggedInUser?.role === 'Admin');
+    // Load from chain (not localStorage)
+    fetchLoans();
     // Load my documents list
     loadMyDocs(loggedInUser?.email);
   }, []);
+
+  const fetchLoans = async () => {
+    try {
+      const res = await fetch('/api/loans?org=creditor');
+      const data = await res.json();
+      const list = Array.isArray(data) ? data : [];
+      setSubmittedRecords(list.filter(r => r.docType === 'SimpleLoan'));
+    } catch (_) {
+      setSubmittedRecords([]);
+    }
+  };
 
   const logout = () => {
     localStorage.removeItem('loggedInUser');
@@ -46,12 +61,52 @@ export default function CreditorDashboard() {
     setActiveTab(tab);
   };
 
+  // Normalize status labels
+  const statusLabel = (s) => ({
+    unconfirmed: 'Unconfirmed',
+    confirmed: 'Confirmed',
+    'awaiting-admin': 'Awaiting Admin',
+    'awaiting-borrower': 'Awaiting Borrower',
+    'rejected-by-borrower': 'Rejected by Borrower',
+    'rejected-by-admin': 'Rejected by Admin',
+    npa: 'NPA',
+    closed: 'Closed'
+  }[s] || (s ? s.charAt(0).toUpperCase() + s.slice(1) : ''));
+
+  // Normalize date to YYYY-MM-DD across browsers (Safari fallback included)
+  const normalizeDate = (val) => {
+    if (!val) return '';
+    const s = String(val).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; // already ISO
+    const m = s.match(/^(\d{1,2})[\/\.-](\d{1,2})[\/\.-](\d{4})$/);
+    if (m) {
+      const d = m[1].padStart(2, '0');
+      const mo = m[2].padStart(2, '0');
+      const y = m[3];
+      // assume day-first for common locales (dd/mm/yyyy)
+      return `${y}-${mo}-${d}`;
+    }
+    const dt = new Date(s);
+    if (!Number.isNaN(dt.getTime())) {
+      const yyyy = dt.getFullYear();
+      const mm = String(dt.getMonth() + 1).padStart(2, '0');
+      const dd = String(dt.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    return s;
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
+    const v = (name === 'loanStartDate' || name === 'maturityDate') ? normalizeDate(value) : value;
+    setFormData(prev => ({ ...prev, [name]: v }));
   };
 
   const handleDropdownToggle = (id) => {
+    if (!isAdmin) {
+      alert('Only Admin can update the loan status');
+      return;
+    }
     setDropdownStatus(prev => ({
       ...prev,
       [id]: !prev[id]
@@ -59,6 +114,10 @@ export default function CreditorDashboard() {
   };
 
   const handleDropdownSelect = (id, status) => {
+    if (!isAdmin) {
+      alert('Only Admin can update the loan status');
+      return;
+    }
     setDropdownStatus(prev => ({
       ...prev,
       [id]: false
@@ -75,7 +134,11 @@ export default function CreditorDashboard() {
     });
   };
 
-  const handleSubmit = (e) => {
+  // Details modal helpers
+  const openDetails = (record) => { setDetailsRecord(record); setDetailsOpen(true); };
+  const closeDetails = () => { setDetailsOpen(false); setDetailsRecord(null); };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const {
       borrowerName,
@@ -89,49 +152,50 @@ export default function CreditorDashboard() {
     } = formData;
 
     const isBlank = (s) => !s || !String(s).trim();
-    // Robust cross-browser date validation: accept ISO or any parseable date
     const isValidDate = (s) => {
       if (isBlank(s)) return false;
-      const str = String(s).trim();
-      const iso = /^\d{4}-\d{2}-\d{2}$/.test(str);
-      const parsed = new Date(str);
-      return iso || !Number.isNaN(parsed.getTime());
+      const iso = /^\d{4}-\d{2}-\d{2}$/.test(String(s).trim());
+      if (iso) return true;
+      const n = normalizeDate(s);
+      return /^\d{4}-\d{2}-\d{2}$/.test(n);
     };
 
-    if (isBlank(borrowerName) || isBlank(loanAmount) || !isValidDate(loanStartDate) || isBlank(loanStatus)) {
-      alert('Please fill in all required fields (Borrower, Amount, Start Date, Status).');
+    const startISO = normalizeDate(loanStartDate);
+    const maturityISO = normalizeDate(maturityDate);
+
+    if (isBlank(borrowerName) || isBlank(loanAmount) || !isValidDate(startISO)) {
+      alert('Please fill in required fields (Borrower, Amount, Start Date).');
       return;
     }
 
-    const newRecord = {
-      borrowerName: String(borrowerName).trim(),
-      loanAmount: String(loanAmount).trim(),
-      loanStartDate,
-      maturityDate,
-      loanStatus,
-      assetRecords,
-      balanceSheet,
-      existingLiabilities,
-      transactionId: `TXN${Date.now()}`,
-      status: 'pending'
-    };
+    const loanId = `LOAN${Date.now()}`;
 
-    const updatedRecords = [...submittedRecords, newRecord];
-    setSubmittedRecords(updatedRecords);
-    localStorage.setItem('submittedRecords', JSON.stringify(updatedRecords));
-
-    setFormData({
-      borrowerName: '',
-      loanAmount: '',
-      loanStartDate: '',
-      maturityDate: '',
-      loanStatus: '',
-      assetRecords: '',
-      balanceSheet: '',
-      existingLiabilities: ''
-    });
-
-    setActiveTab('records');
+    try {
+      const res = await fetch('/api/loans', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loanId, borrowerName: String(borrowerName).trim(), loanAmount: String(loanAmount).trim(), loanStartDate: startISO, maturityDate: maturityISO || '', org: 'creditor' })
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Submission failed');
+      }
+      await fetchLoans();
+      setFormData({
+        borrowerName: '',
+        loanAmount: '',
+        loanStartDate: '',
+        maturityDate: '',
+        loanStatus: 'Active',
+        assetRecords: '',
+        balanceSheet: '',
+        existingLiabilities: ''
+      });
+      setActiveTab('records');
+      alert('Loan submitted on-chain and awaiting admin approval');
+    } catch (err) {
+      alert(err.message);
+    }
   };
 
   const handleDocumentUpload = async (e) => {
@@ -210,7 +274,7 @@ export default function CreditorDashboard() {
         <div className="card bg-white rounded-lg shadow p-6 text-center">
           <h2 className="text-blue-800 font-bold mb-2">Pending Confirmation</h2>
           <div className="text-3xl font-bold text-yellow-600">
-            {submittedRecords.filter(r => r.status === 'pending').length}
+            {submittedRecords.filter(r => ['unconfirmed','awaiting-admin','awaiting-borrower'].includes(r.status)).length}
           </div>
         </div>
         <div className="card bg-white rounded-lg shadow p-6 text-center">
@@ -251,10 +315,10 @@ export default function CreditorDashboard() {
           <div className="panel bg-white rounded-lg shadow p-6 mb-6">
             <h3 className="font-bold text-lg mb-4">Recent Activity</h3>
             {submittedRecords.slice(-3).reverse().map((record) => (
-              <div key={record.transactionId} className="loan-item flex justify-between items-center border border-gray-200 rounded-lg p-4 mb-2">
+              <div key={record.loanId || record.transactionId} className="loan-item flex justify-between items-center border border-gray-200 rounded-lg p-4 mb-2">
                 <div>
                   {record.borrowerName}<br />
-                  <span className={`status ${record.status}`}>{record.status.charAt(0).toUpperCase() + record.status.slice(1)}</span>
+                  <span className={`status ${record.status}`}>{statusLabel(record.status)}</span>
                 </div>
               </div>
             ))}
@@ -311,6 +375,9 @@ export default function CreditorDashboard() {
                   value={formData.loanStartDate}
                   onChange={handleInputChange}
                   className="w-full p-3 border rounded-lg"
+                  placeholder="YYYY-MM-DD"
+                  inputMode="numeric"
+                  pattern="\d{4}-\d{2}-\d{2}"
                   required
                 />
               </div>
@@ -322,6 +389,9 @@ export default function CreditorDashboard() {
                   value={formData.maturityDate}
                   onChange={handleInputChange}
                   className="w-full p-3 border rounded-lg"
+                  placeholder="YYYY-MM-DD"
+                  inputMode="numeric"
+                  pattern="\d{4}-\d{2}-\d{2}"
                 />
               </div>
               <div className="form-group mb-4">
@@ -418,56 +488,23 @@ export default function CreditorDashboard() {
             <h3 className="font-bold text-lg mb-4">Submitted Loan Records</h3>
             <p className="mb-4">Track status of all your submitted loan records</p>
             {submittedRecords.map(record => (
-              <div key={record.transactionId} className="loan-item flex justify-between items-center border border-gray-200 rounded-lg p-4 mb-2" data-status={record.status}>
+              <div key={record.loanId || record.transactionId} className="loan-item flex justify-between items-center border border-gray-200 rounded-lg p-4 mb-2" data-status={record.status}>
                 <div>
                   <strong>{record.borrowerName}</strong><br />
-                  Transaction ID: {record.transactionId}<br />
+                  Loan ID: {record.loanId || record.transactionId}<br />
                   Amount <strong>{record.loanAmount}</strong><br />
                   Submitted <strong>{record.loanStartDate}</strong><br />
                   {record.status === 'confirmed' ? (
-                    <>Confirmed <strong>{record.maturityDate}</strong></>
+                    <>Confirmed <strong>{record.maturityDate || '-'}</strong></>
                   ) : (
-                    <>Expires <strong>{record.maturityDate}</strong></>
+                    <>Maturity <strong>{record.maturityDate || '-'}</strong></>
                   )}
                 </div>
                 <div className="status-and-actions flex items-center gap-4">
-                  <div className="status-dropdown-container relative inline-block">
-                    <button
-                      className="status-dropdown-toggle bg-gray-200 text-gray-700 border border-gray-300 rounded-lg px-3 py-1 font-semibold text-sm flex items-center justify-between min-w-[150px]"
-                      onClick={() => handleDropdownToggle(record.transactionId)}
-                    >
-                      {record.status.charAt(0).toUpperCase() + record.status.slice(1)} ▼
-                    </button>
-                    {dropdownStatus[record.transactionId] && (
-                      <div className="status-dropdown-menu absolute top-full left-0 bg-white border border-gray-300 rounded-b-lg shadow-md z-10 w-full">
-                        <div
-                          className="dropdown-item px-4 py-2 cursor-pointer hover:bg-gray-100 font-semibold text-sm"
-                          onClick={() => handleDropdownSelect(record.transactionId, 'default')}
-                        >
-                          Default
-                        </div>
-                        <div
-                          className="dropdown-item px-4 py-2 cursor-pointer hover:bg-gray-100 font-semibold text-sm"
-                          onClick={() => handleDropdownSelect(record.transactionId, 'npa')}
-                        >
-                          Non-Performing Asset (NPA)
-                        </div>
-                        <div
-                          className="dropdown-item px-4 py-2 cursor-pointer hover:bg-gray-100 font-semibold text-sm"
-                          onClick={() => handleDropdownSelect(record.transactionId, 'pending')}
-                        >
-                          Pending Confirmation
-                        </div>
-                        <div
-                          className="dropdown-item px-4 py-2 cursor-pointer hover:bg-gray-100 font-semibold text-sm"
-                          onClick={() => handleDropdownSelect(record.transactionId, 'confirmed')}
-                        >
-                          Confirmed
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <button className="view-details-btn bg-blue-600 text-white rounded-lg px-3 py-1 font-semibold hover:bg-blue-700">
+                  <span className="inline-block bg-gray-100 text-gray-800 border border-gray-300 rounded-lg px-3 py-1 font-semibold text-sm min-w-[170px] text-center">
+                    {statusLabel(record.status)}
+                  </span>
+                  <button onClick={() => openDetails(record)} className="view-details-btn bg-blue-600 text-white rounded-lg px-3 py-1 font-semibold hover:bg-blue-700">
                     View Details
                   </button>
                 </div>
@@ -526,6 +563,26 @@ export default function CreditorDashboard() {
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Details Modal */}
+      {detailsOpen && detailsRecord && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-xl p-6">
+            <h3 className="font-bold text-lg mb-4">Loan Details</h3>
+            <div className="space-y-2 text-sm">
+              <div><strong>Borrower:</strong> {detailsRecord.borrowerName}</div>
+              <div><strong>Amount:</strong> {detailsRecord.loanAmount}</div>
+              <div><strong>Start Date:</strong> {detailsRecord.loanStartDate}</div>
+              <div><strong>Maturity Date:</strong> {detailsRecord.maturityDate || '-'}</div>
+              <div><strong>Status:</strong> {statusLabel(detailsRecord.status)}</div>
+              <div><strong>Loan ID:</strong> {detailsRecord.loanId || detailsRecord.transactionId}</div>
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button onClick={closeDetails} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Close</button>
             </div>
           </div>
         </div>

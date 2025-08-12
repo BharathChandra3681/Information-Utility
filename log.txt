@@ -1,0 +1,7 @@
+Installed chaincodes on peer:
+Package ID: iu-basic_1.0:1a4e9ec3bad5d08490c28225ef370b207c6444a5ca5be5aded8ead75de9c9e44, Label: iu-basic_1.0
+Package ID: iu-basic_1.1:b797efbc008fcba851889eaeeaf90bc020b933c68e000fb2a202f5c55217ed9b, Label: iu-basic_1.1
+Package ID: iu-basic_1.2:d0ec9be87041cbd5958eb34ccad30ef7e98c795208ce2ea587d0eea7686dc6ff, Label: iu-basic_1.2
+Package ID: iu-basic_1.3:078317db259187a14c05abc63f6ae9489cdbeaa3c2d7cb3d217a8266cc45eefd, Label: iu-basic_1.3
+Package ID: iu-basic_1.0:8d18449e83bfd23771a7854b77fc2c03443f985fcfbe359b7ba2a12cdffb55c2, Label: iu-basic_1.0
+Package ID: iu-basic_1.5:566e132e6497619ca381d5223471d37fbcad6979ae76523d45f2bd3ed3e279fe, Label: iu-basic_1.5

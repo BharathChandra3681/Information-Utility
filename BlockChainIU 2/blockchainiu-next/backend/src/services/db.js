@@ -3,6 +3,15 @@ import pg from 'pg';
 
 const { Pool } = pg;
 
+// Debug environment variables
+console.log('Database connection config:', {
+  host: process.env.PGHOST || 'localhost',
+  port: process.env.PGPORT || 5432,
+  database: process.env.PGDATABASE || 'iu_docs',
+  user: process.env.PGUSER || 'iu_user',
+  password: process.env.PGPASSWORD ? '***' : 'iu_password'
+});
+
 export const pool = new Pool({
   host: process.env.PGHOST || 'localhost',
   port: Number(process.env.PGPORT || 5432),

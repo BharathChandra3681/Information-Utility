@@ -6,6 +6,22 @@ export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
   const [pendingDocs, setPendingDocs] = useState([]);
   const [loadingPending, setLoadingPending] = useState(false);
+  // Loan approvals state
+  const [loanRecords, setLoanRecords] = useState([]);
+  const [loanLoading, setLoanLoading] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsRecord, setDetailsRecord] = useState(null);
+
+  const statusLabel = (s) => ({
+    unconfirmed: 'Unconfirmed',
+    confirmed: 'Confirmed',
+    'awaiting-admin': 'Awaiting Admin',
+    'awaiting-borrower': 'Awaiting Borrower',
+    'rejected-by-borrower': 'Rejected by Borrower',
+    'rejected-by-admin': 'Rejected by Admin',
+    npa: 'NPA',
+    closed: 'Closed'
+  }[s] || s);
 
   useEffect(() => {
     const loggedInUser = JSON.parse(localStorage.getItem('loggedInUser'));
@@ -13,6 +29,7 @@ export default function AdminDashboard() {
       alert('Unauthorized access. Please login as Admin.');
       window.location.href = '/';
     }
+    loadLoanRecords();
   }, []);
 
   const logout = () => {
@@ -23,6 +40,42 @@ export default function AdminDashboard() {
   const switchTab = (tab) => {
     setActiveTab(tab);
   };
+
+  // Load loan records from backend
+  const loadLoanRecords = async () => {
+    try {
+      setLoanLoading(true);
+      const res = await fetch('/api/loans?org=admin');
+      const data = await res.json();
+      setLoanRecords(Array.isArray(data) ? data.filter(r => r.docType === 'SimpleLoan') : []);
+    } catch (_) {
+      setLoanRecords([]);
+    } finally {
+      setLoanLoading(false);
+    }
+  };
+
+  const adminApprove = async (id) => {
+    try {
+      const res = await fetch(`/api/loans/${encodeURIComponent(id)}/admin/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org: 'admin' }) });
+      if (!res.ok) throw new Error((await res.json()).error || 'Approve failed');
+      await loadLoanRecords();
+      alert('Approved on-chain');
+    } catch (e) { alert(e.message); }
+  };
+
+  const adminReject = async (id) => {
+    try {
+      const reason = prompt('Reason for rejection?') || '';
+      const res = await fetch(`/api/loans/${encodeURIComponent(id)}/admin/reject`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org: 'admin', reason }) });
+      if (!res.ok) throw new Error((await res.json()).error || 'Reject failed');
+      await loadLoanRecords();
+      alert('Rejected on-chain');
+    } catch (e) { alert(e.message); }
+  };
+
+  const openDetails = (record) => { setDetailsRecord(record); setDetailsOpen(true); };
+  const closeDetails = () => { setDetailsOpen(false); setDetailsRecord(null); };
 
   const loadPending = async () => {
     try {
@@ -53,6 +106,11 @@ export default function AdminDashboard() {
     }
   };
 
+  // Derived counts for overview cards
+  const totalRecords = loanRecords.length;
+  const pendingCount = loanRecords.filter(r => ['awaiting-admin','awaiting-borrower','unconfirmed'].includes(r.status)).length;
+  const confirmedCount = loanRecords.filter(r => r.status === 'confirmed').length;
+
   return (
     <div className="font-inter bg-gray-100 min-h-screen">
       <nav className="navbar bg-white shadow-md sticky top-0 z-50 p-4 flex justify-between items-center">
@@ -75,17 +133,17 @@ export default function AdminDashboard() {
         <section className="overview-cards grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
           <div className="card bg-white p-6 rounded-lg shadow hover:shadow-lg transition">
             <h3 className="text-blue-800 font-bold mb-2">Total Records</h3>
-            <p className="card-number text-3xl font-bold text-blue-600">5</p>
+            <p className="card-number text-3xl font-bold text-blue-600">{totalRecords}</p>
             <p>On blockchain</p>
           </div>
           <div className="card bg-white p-6 rounded-lg shadow hover:shadow-lg transition">
             <h3 className="text-blue-800 font-bold mb-2">Pending Review</h3>
-            <p className="card-number text-3xl font-bold text-yellow-600">2</p>
+            <p className="card-number text-3xl font-bold text-yellow-600">{pendingCount}</p>
             <p>Awaiting confirmation</p>
           </div>
           <div className="card bg-white p-6 rounded-lg shadow hover:shadow-lg transition">
             <h3 className="text-blue-800 font-bold mb-2">Verified Records</h3>
-            <p className="card-number text-3xl font-bold text-green-600">2</p>
+            <p className="card-number text-3xl font-bold text-green-600">{confirmedCount}</p>
             <p>Successfully confirmed</p>
           </div>
           <div className="card bg-white p-6 rounded-lg shadow hover:shadow-lg transition">
@@ -102,7 +160,7 @@ export default function AdminDashboard() {
               className={`tab px-4 py-2 rounded-lg font-semibold ${
                 activeTab === tab ? 'bg-blue-600 text-white shadow-lg' : 'bg-blue-100 text-blue-800'
               }`}
-              onClick={() => switchTab(tab)}
+              onClick={() => setActiveTab(tab)}
             >
               {tab.replace('-', ' ').replace(/\b\w/g, c => c.toUpperCase())}
             </button>
@@ -115,163 +173,79 @@ export default function AdminDashboard() {
               <div className="recent-activity mb-6">
                 <h2 className="text-xl font-bold mb-4">Recent Activity</h2>
                 <ul className="list-none p-0">
-                  <li className="bg-white p-4 rounded-lg shadow mb-4 hover:shadow-lg transition">
-                    <strong>HDFC Bank Ltd → Reliance Capital Ltd</strong><br />
-                    ₹500 Crore • 2024-01-15
-                    <span className="status pending ml-2">Pending Confirmation</span>
-                  </li>
-                  <li className="bg-white p-4 rounded-lg shadow mb-4 hover:shadow-lg transition">
-                    <strong>HDFC Bank Ltd → Jet Airways India Ltd</strong><br />
-                    ₹250 Crore • 2024-01-10
-                    <span className="status confirmed ml-2">Confirmed</span>
-                  </li>
-                  <li className="bg-white p-4 rounded-lg shadow mb-4 hover:shadow-lg transition">
-                    <strong>Axis Bank Ltd → Videocon Industries Ltd</strong><br />
-                    ₹800 Crore • 2024-01-08
-                    <span className="status rejected ml-2">Rejected</span>
-                  </li>
-                  <li className="bg-white p-4 rounded-lg shadow mb-4 hover:shadow-lg transition">
-                    <strong>State Bank of India → Reliance Capital Ltd</strong><br />
-                    ₹250 Crore • 2024-01-18
-                    <span className="status pending ml-2">Pending Confirmation</span>
-                  </li>
-                  <li className="bg-white p-4 rounded-lg shadow hover:shadow-lg transition">
-                    <strong>ICICI Bank Ltd → Reliance Capital Ltd</strong><br />
-                    ₹180 Crore • 2024-01-11
-                    <span className="status confirmed ml-2">Confirmed</span>
-                  </li>
+                  {loanRecords
+                    .slice()
+                    .sort((a,b) => new Date(b.submittedAt || b.loanStartDate) - new Date(a.submittedAt || a.loanStartDate))
+                    .slice(0,5)
+                    .map(r => (
+                      <li key={r.loanId} className="bg-white p-4 rounded-lg shadow mb-4 hover:shadow-lg transition">
+                        <strong>{r.creditorName || 'Creditor'} → {r.borrowerName}</strong><br />
+                        {r.loanAmount || '-'} • {r.loanStartDate || (r.submittedAt || '').slice(0,10)}
+                        <span className="ml-2 inline-block bg-gray-100 text-gray-800 border border-gray-300 rounded-full px-2 py-0.5 text-xs font-bold">
+                          {statusLabel(r.status)}
+                        </span>
+                      </li>
+                  ))}
+                  {!loanRecords.length && (
+                    <li className="text-gray-500">No recent activity</li>
+                  )}
                 </ul>
               </div>
-
+              {/* Keep generic alerts; removed hardcoded record rows */}
               <div className="system-alerts">
                 <h2 className="text-xl font-bold mb-4">System Alerts</h2>
-                <div className="alert alert-warning p-4 rounded-lg mb-4 shadow">
-                  <strong>High Volume Alert</strong><br />
-                  15 records pending review
-                </div>
-                <div className="alert alert-success p-4 rounded-lg mb-4 shadow">
-                  <strong>Security Status: Normal</strong><br />
-                  All systems operational
-                </div>
-                <div className="alert alert-info p-4 rounded-lg shadow">
-                  <strong>Monthly Growth</strong><br />
-                  25% increase in submissions
-                </div>
+                <div className="alert alert-success p-4 rounded-lg shadow">All systems operational</div>
               </div>
             </div>
           )}
 
           {activeTab === 'all-records' && (
-            <div className="all-records bg-white p-6 rounded-lg shadow">
+            <div className="all-records bg-white p-6 rounded-lg shadow mb-6">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold">Pending Document Verifications</h2>
-                <button onClick={loadPending} className="bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700">
-                  {loadingPending ? 'Refreshing...' : 'Refresh'}
-                </button>
+                <h2 className="text-xl font-bold">Submitted Loan Records</h2>
+                <div className="flex gap-2">
+                  <button onClick={loadLoanRecords} className="bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700">
+                    {loanLoading ? 'Refreshing...' : 'Refresh'}
+                  </button>
+                </div>
               </div>
               <div className="overflow-auto">
                 <table className="w-full border-collapse text-sm">
                   <thead className="bg-blue-100 text-blue-800">
                     <tr>
-                      <th className="p-2 text-left">Document ID</th>
-                      <th className="p-2 text-left">Owner</th>
-                      <th className="p-2 text-left">Loan ID</th>
-                      <th className="p-2 text-left">Filename</th>
-                      <th className="p-2 text-left">Size</th>
-                      <th className="p-2 text-left">Uploaded</th>
+                      <th className="p-2 text-left">Borrower</th>
+                      <th className="p-2 text-left">Amount</th>
+                      <th className="p-2 text-left">Submitted</th>
+                      <th className="p-2 text-left">Maturity</th>
+                      <th className="p-2 text-left">Status</th>
                       <th className="p-2 text-left">Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {pendingDocs.map((d) => (
-                      <tr key={d.id} className="border-b border-gray-200">
-                        <td className="p-2">{d.id}</td>
-                        <td className="p-2">{d.owner_id}</td>
-                        <td className="p-2">{d.loan_id || '-'}</td>
-                        <td className="p-2">{d.filename}</td>
-                        <td className="p-2">{Math.round(d.size_bytes / 1024)} KB</td>
-                        <td className="p-2">{new Date(d.created_at).toLocaleString()}</td>
-                        <td className="p-2 flex gap-2">
-                          <a href={`/api/documents/${encodeURIComponent(d.id)}/download`} className="bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700">Download</a>
-                          <button onClick={() => verifyDoc(d.id)} className="bg-green-600 text-white px-3 py-1 rounded-lg hover:bg-green-700">
-                            Verify & Anchor
-                          </button>
+                    {loanRecords.map(r => (
+                      <tr key={r.loanId} className="border-b border-gray-200">
+                        <td className="p-2 font-semibold">{r.borrowerName}<br /><small className="text-gray-500">{r.loanId}</small></td>
+                        <td className="p-2">{r.loanAmount}</td>
+                        <td className="p-2">{r.loanStartDate}</td>
+                        <td className="p-2">{r.maturityDate || '-'}</td>
+                        <td className="p-2">
+                          <span className="inline-block bg-gray-100 text-gray-800 border border-gray-300 rounded-full px-2 py-1 font-bold text-xs">{statusLabel(r.status)}</span>
+                        </td>
+                        <td className="p-2 flex flex-wrap gap-2">
+                          <button onClick={() => openDetails(r)} className="bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700">View Details</button>
+                          <button onClick={() => adminApprove(r.loanId)} disabled={r.adminApproval === 'approved' || r.status === 'confirmed'} className="bg-green-600 disabled:opacity-50 text-white px-3 py-1 rounded-lg hover:bg-green-700">Approve</button>
+                          <button onClick={() => adminReject(r.loanId)} disabled={r.status === 'confirmed'} className="bg-red-600 disabled:opacity-50 text-white px-3 py-1 rounded-lg hover:bg-red-700">Reject</button>
                         </td>
                       </tr>
                     ))}
-                    {!pendingDocs.length && (
+                    {!loanRecords.length && (
                       <tr>
-                        <td className="p-3 text-center text-gray-500" colSpan={7}>No pending documents</td>
+                        <td className="p-3 text-center text-gray-500" colSpan={6}>No submitted records</td>
                       </tr>
                     )}
                   </tbody>
                 </table>
               </div>
-            </div>
-          )}
-
-          {activeTab === 'all-records' && (
-            <div className="all-records bg-white p-6 rounded-lg shadow">
-              <h2 className="text-xl font-bold mb-4">Blockchain Records Audit</h2>
-              <p className="mb-4">Search and filter all loan records on the blockchain</p>
-              <div className="flex flex-wrap gap-4 mb-4">
-                <input
-                  type="text"
-                  placeholder="Search by creditor, borrower, or transaction ID..."
-                  className="flex-grow p-2 rounded-lg border border-gray-300 text-sm"
-                />
-                <select className="p-2 rounded-lg border border-gray-300 text-sm">
-                  <option>All Status</option>
-                  <option>Pending Confirmation</option>
-                  <option>Confirmed</option>
-                  <option>Rejected</option>
-                </select>
-                <select className="p-2 rounded-lg border border-gray-300 text-sm">
-                  <option>Last 30 days</option>
-                  <option>Last 60 days</option>
-                  <option>Last 90 days</option>
-                </select>
-                <button className="bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700">
-                  Export Data
-                </button>
-              </div>
-              <table className="w-full border-collapse text-sm">
-                <thead className="bg-blue-100 text-blue-800">
-                  <tr>
-                    <th className="p-2 text-left">Creditor → Borrower</th>
-                    <th className="p-2 text-left">Amount</th>
-                    <th className="p-2 text-left">Submitted</th>
-                    <th className="p-2 text-left">Type</th>
-                    <th className="p-2 text-left">Blockchain Hash</th>
-                    <th className="p-2 text-left">Status</th>
-                    <th className="p-2 text-left">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {/* Sample rows */}
-                  <tr className="border-b border-gray-200">
-                    <td className="p-2 font-bold">
-                      HDFC Bank Ltd → Reliance Capital Ltd<br />
-                      <small>Transaction ID: TXN001</small>
-                    </td>
-                    <td className="p-2">₹500 Crore</td>
-                    <td className="p-2">2024-01-15</td>
-                    <td className="p-2">Loan Record</td>
-                    <td className="p-2">
-                      <a href="#" className="text-blue-600 hover:underline">0x1a2b3c4d...</a>
-                    </td>
-                    <td className="p-2">
-                      <span className="status pending px-2 py-1 rounded-full font-bold">Pending Confirmation</span>
-                    </td>
-                    <td className="p-2">
-                      <button className="view-details-btn bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700">
-                        Audit Details
-                      </button>
-                    </td>
-                  </tr>
-                  {/* Add more rows as needed */}
-                </tbody>
-              </table>
             </div>
           )}
 
@@ -358,6 +332,31 @@ export default function AdminDashboard() {
           )}
         </section>
       </main>
+
+      {/* Details Modal */}
+      {detailsOpen && detailsRecord && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-xl p-6">
+            <h3 className="font-bold text-lg mb-4">Loan Details</h3>
+            <div className="space-y-2 text-sm">
+              <div><strong>Borrower:</strong> {detailsRecord.borrowerName}</div>
+              <div><strong>Creditor:</strong> {detailsRecord.creditorName || '-'}</div>
+              <div><strong>Amount:</strong> {detailsRecord.loanAmount}</div>
+              <div><strong>Start Date:</strong> {detailsRecord.loanStartDate}</div>
+              <div><strong>Maturity Date:</strong> {detailsRecord.maturityDate || '-'}</div>
+              <div><strong>Status:</strong> {statusLabel(detailsRecord.status)}</div>
+              <div><strong>Admin Approval:</strong> {detailsRecord.adminApproval}</div>
+              <div><strong>Borrower Decision:</strong> {detailsRecord.borrowerDecision}</div>
+              <div><strong>Loan ID:</strong> {detailsRecord.loanId}</div>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button onClick={() => adminApprove(detailsRecord.loanId)} disabled={detailsRecord.adminApproval === 'approved' || detailsRecord.status === 'confirmed'} className="bg-green-600 text-white px-3 py-1 rounded-lg hover:bg-green-700 disabled:opacity-50">Approve</button>
+              <button onClick={() => adminReject(detailsRecord.loanId)} disabled={detailsRecord.status === 'confirmed'} className="bg-red-600 text-white px-3 py-1 rounded-lg hover:bg-red-700 disabled:opacity-50">Reject</button>
+              <button onClick={closeDetails} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

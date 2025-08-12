@@ -14,7 +14,7 @@ CHANNEL_NAME=${CHANNEL_NAME:-financial-operations-channel}
 CHAINCODE_NAME=${CHAINCODE_NAME:-iu-basic}
 CHAINCODE_VERSION=${CHAINCODE_VERSION:-1.0}
 CHAINCODE_SEQUENCE=${CHAINCODE_SEQUENCE:-1}
-CC_SRC_PATH="${/Users/bharathchandranangunuri/Information Utility/hyperledger-fabric-iu}/chaincode/iu-basic"
+CC_SRC_PATH="${PROJECT_ROOT}/chaincode/iu-basic"
 CC_RUNTIME_LANGUAGE="node"
 
 # Colors for output
@@ -165,238 +165,98 @@ installChaincode() {
             MSPCONFIGPATH="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config/peerOrganizations/admin.iu-network.com/users/Admin@admin.iu-network.com/msp"
             ;;
     esac
-    
-    echo -e "${BLUE}📤 Installing on $ORG_NAME${NC}"
-    
+
+    echo -e "${BLUE}🏗 Installing chaincode on $ORG_NAME peer ($PEER_ADDRESS)${NC}"
+
     docker exec \
-        -e CORE_PEER_LOCALMSPID=$MSP_ID \
-        -e CORE_PEER_ADDRESS=$PEER_ADDRESS \
-        -e CORE_PEER_TLS_ROOTCERT_FILE=$TLS_ROOTCERT \
-        -e CORE_PEER_MSPCONFIGPATH=$MSPCONFIGPATH \
-        cli peer lifecycle chaincode install ${CHAINCODE_NAME}.tar.gz
-    
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}✅ Chaincode installed on $ORG_NAME${NC}"
-    else
-        echo -e "${RED}❌ Failed to install chaincode on $ORG_NAME${NC}"
-        exit 1
-    fi
+        -e CORE_PEER_LOCALMSPID=${MSP_ID} \
+        -e CORE_PEER_TLS_ROOTCERT_FILE=${TLS_ROOTCERT} \
+        -e CORE_PEER_MSPCONFIGPATH=${MSPCONFIGPATH} \
+        -e CORE_PEER_ADDRESS=${PEER_ADDRESS} \
+        cli peer lifecycle chaincode install /opt/gopath/src/github.com/hyperledger/fabric/peer/${CHAINCODE_NAME}.tar.gz || true
 }
 
-# Query installed chaincode
+# Query installed chaincode package ID on a peer
 queryInstalled() {
     local ORG=$1
-    local ORG_NAME=""
-    local PEER_ADDRESS=""
-    
-    case $ORG in
-        1)
-            ORG_NAME="Creditor"
-            PEER_ADDRESS="peer0.creditor.iu-network.com:7051"
-            MSP_ID="CreditorMSP"
-            TLS_ROOTCERT="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config/peerOrganizations/creditor.iu-network.com/peers/peer0.creditor.iu-network.com/tls/ca.crt"
-            MSPCONFIGPATH="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config/peerOrganizations/creditor.iu-network.com/users/Admin@creditor.iu-network.com/msp"
-            ;;
-        2)
-            ORG_NAME="Debtor"
-            PEER_ADDRESS="peer0.debtor.iu-network.com:8051"
-            MSP_ID="DebtorMSP"
-            TLS_ROOTCERT="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config/peerOrganizations/debtor.iu-network.com/peers/peer0.debtor.iu-network.com/tls/ca.crt"
-            MSPCONFIGPATH="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config/peerOrganizations/debtor.iu-network.com/users/Admin@debtor.iu-network.com/msp"
-            ;;
-        3)
-            ORG_NAME="Admin"
-            PEER_ADDRESS="peer0.admin.iu-network.com:9051"
-            MSP_ID="AdminMSP"
-            TLS_ROOTCERT="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config/peerOrganizations/admin.iu-network.com/peers/peer0.admin.iu-network.com/tls/ca.crt"
-            MSPCONFIGPATH="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config/peerOrganizations/admin.iu-network.com/users/Admin@admin.iu-network.com/msp"
-            ;;
-    esac
-    
-    echo -e "${YELLOW}🔍 Querying installed chaincode on $ORG_NAME...${NC}"
-    
-    docker exec \
-        -e CORE_PEER_LOCALMSPID=$MSP_ID \
-        -e CORE_PEER_ADDRESS=$PEER_ADDRESS \
-        -e CORE_PEER_TLS_ROOTCERT_FILE=$TLS_ROOTCERT \
-        -e CORE_PEER_MSPCONFIGPATH=$MSPCONFIGPATH \
-        cli peer lifecycle chaincode queryinstalled > log.txt
-    
-    if [ $? -eq 0 ]; then
-        cat log.txt
-        PACKAGE_ID=$(sed -n "/${CHAINCODE_NAME}_${CHAINCODE_VERSION}/{s/^Package ID: //; s/, Label:.*$//; p;}" log.txt)
-        echo -e "${GREEN}Package ID: $PACKAGE_ID${NC}"
-    else
-        echo -e "${RED}❌ Failed to query installed chaincode${NC}"
-        exit 1
-    fi
+    setGlobals $ORG
+    docker exec cli peer lifecycle chaincode queryinstalled >&log.txt
+    cat log.txt
+    PACKAGE_ID=$(sed -n "/${CHAINCODE_NAME}_${CHAINCODE_VERSION}/{s/^Package ID: \(.*\), Label: .*/\1/p;q}" log.txt)
+    echo -e "${GREEN}📦 Package ID: ${PACKAGE_ID}${NC}"
 }
 
-# Approve chaincode for organization
+# Approve chaincode for an org
 approveForMyOrg() {
     local ORG=$1
-    local ORG_NAME=""
-    local PEER_ADDRESS=""
-    
-    case $ORG in
-        1)
-            ORG_NAME="Creditor"
-            PEER_ADDRESS="peer0.creditor.iu-network.com:7051"
-            MSP_ID="CreditorMSP"
-            TLS_ROOTCERT="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config/peerOrganizations/creditor.iu-network.com/peers/peer0.creditor.iu-network.com/tls/ca.crt"
-            MSPCONFIGPATH="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config/peerOrganizations/creditor.iu-network.com/users/Admin@creditor.iu-network.com/msp"
-            ;;
-        2)
-            ORG_NAME="Debtor"
-            PEER_ADDRESS="peer0.debtor.iu-network.com:8051"
-            MSP_ID="DebtorMSP"
-            TLS_ROOTCERT="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config/peerOrganizations/debtor.iu-network.com/peers/peer0.debtor.iu-network.com/tls/ca.crt"
-            MSPCONFIGPATH="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config/peerOrganizations/debtor.iu-network.com/users/Admin@debtor.iu-network.com/msp"
-            ;;
-        3)
-            ORG_NAME="Admin"
-            PEER_ADDRESS="peer0.admin.iu-network.com:9051"
-            MSP_ID="AdminMSP"
-            TLS_ROOTCERT="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config/peerOrganizations/admin.iu-network.com/peers/peer0.admin.iu-network.com/tls/ca.crt"
-            MSPCONFIGPATH="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config/peerOrganizations/admin.iu-network.com/users/Admin@admin.iu-network.com/msp"
-            ;;
-    esac
-    
-    echo -e "${BLUE}✍️  Approving chaincode for $ORG_NAME...${NC}"
-    
-    queryInstalled $ORG
-    
-    ORDERER_CA_CONTAINER="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/msp/tlscacerts/tlsca.iu-network.com-cert.pem"
-    
-    docker exec \
-        -e CORE_PEER_LOCALMSPID=$MSP_ID \
-        -e CORE_PEER_ADDRESS=$PEER_ADDRESS \
-        -e CORE_PEER_TLS_ROOTCERT_FILE=$TLS_ROOTCERT \
-        -e CORE_PEER_MSPCONFIGPATH=$MSPCONFIGPATH \
-        cli peer lifecycle chaincode approveformyorg \
-        -o orderer.iu-network.com:7050 \
-        --ordererTLSHostnameOverride orderer.iu-network.com \
-        --tls --cafile $ORDERER_CA_CONTAINER \
-        --channelID $CHANNEL_NAME \
-        --name $CHAINCODE_NAME \
-        --version $CHAINCODE_VERSION \
-        --package-id $PACKAGE_ID \
-        --sequence $CHAINCODE_SEQUENCE
-    
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}✅ Chaincode approved for $ORG_NAME${NC}"
-    else
-        echo -e "${RED}❌ Failed to approve chaincode for $ORG_NAME${NC}"
-        exit 1
-    fi
+    setGlobals $ORG
+    echo -e "${BLUE}✅ Approving chaincode for organization $ORG${NC}"
+
+    PEER_ADDRESS="peer0.creditor.iu-network.com:7051"
+    [ $ORG -eq 2 ] && PEER_ADDRESS="peer0.debtor.iu-network.com:8051"
+    [ $ORG -eq 3 ] && PEER_ADDRESS="peer0.admin.iu-network.com:9051"
+
+    docker exec cli peer lifecycle chaincode approveformyorg \
+        -o orderer.iu-network.com:7050 --ordererTLSHostnameOverride orderer.iu-network.com \
+        --channelID ${CHANNEL_NAME} --name ${CHAINCODE_NAME} --version ${CHAINCODE_VERSION} \
+        --package-id ${PACKAGE_ID} --sequence ${CHAINCODE_SEQUENCE} --tls \
+        --cafile ${ORDERER_CA} \
+        --peerAddresses ${PEER_ADDRESS} \
+        --tlsRootCertFiles ${CORE_PEER_TLS_ROOTCERT_FILE} || true
 }
 
 # Check commit readiness
 checkCommitReadiness() {
-    echo -e "${YELLOW}🔍 Checking commit readiness...${NC}"
-    
-    ORDERER_CA_CONTAINER="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/msp/tlscacerts/tlsca.iu-network.com-cert.pem"
-    
-    docker exec \
-        -e CORE_PEER_LOCALMSPID="CreditorMSP" \
-        -e CORE_PEER_ADDRESS="peer0.creditor.iu-network.com:7051" \
-        -e CORE_PEER_TLS_ROOTCERT_FILE="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config/peerOrganizations/creditor.iu-network.com/peers/peer0.creditor.iu-network.com/tls/ca.crt" \
-        -e CORE_PEER_MSPCONFIGPATH="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config/peerOrganizations/creditor.iu-network.com/users/Admin@creditor.iu-network.com/msp" \
-        cli peer lifecycle chaincode checkcommitreadiness \
-        --channelID $CHANNEL_NAME \
-        --name $CHAINCODE_NAME \
-        --version $CHAINCODE_VERSION \
-        --sequence $CHAINCODE_SEQUENCE \
-        --output json
+    setGlobals 1
+    echo -e "${BLUE}🔎 Checking commit readiness...${NC}"
+    docker exec cli peer lifecycle chaincode checkcommitreadiness \
+        --channelID ${CHANNEL_NAME} --name ${CHAINCODE_NAME} --version ${CHAINCODE_VERSION} \
+        --sequence ${CHAINCODE_SEQUENCE} --tls --cafile ${ORDERER_CA} --output json
 }
 
-# Commit chaincode
-commitChaincodeDefinition() {
-    echo -e "${BLUE}🚀 Committing chaincode definition...${NC}"
-    
-    ORDERER_CA_CONTAINER="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/msp/tlscacerts/tlsca.iu-network.com-cert.pem"
-    
-    docker exec \
-        -e CORE_PEER_LOCALMSPID="CreditorMSP" \
-        -e CORE_PEER_ADDRESS="peer0.creditor.iu-network.com:7051" \
-        -e CORE_PEER_TLS_ROOTCERT_FILE="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config/peerOrganizations/creditor.iu-network.com/peers/peer0.creditor.iu-network.com/tls/ca.crt" \
-        -e CORE_PEER_MSPCONFIGPATH="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config/peerOrganizations/creditor.iu-network.com/users/Admin@creditor.iu-network.com/msp" \
-        cli peer lifecycle chaincode commit \
-        -o orderer.iu-network.com:7050 \
-        --ordererTLSHostnameOverride orderer.iu-network.com \
-        --tls --cafile $ORDERER_CA_CONTAINER \
-        --channelID $CHANNEL_NAME \
-        --name $CHAINCODE_NAME \
-        --peerAddresses peer0.creditor.iu-network.com:7051 \
-        --tlsRootCertFiles /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config/peerOrganizations/creditor.iu-network.com/peers/peer0.creditor.iu-network.com/tls/ca.crt \
-        --peerAddresses peer0.debtor.iu-network.com:8051 \
-        --tlsRootCertFiles /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config/peerOrganizations/debtor.iu-network.com/peers/peer0.debtor.iu-network.com/tls/ca.crt \
-        --peerAddresses peer0.admin.iu-network.com:9051 \
-        --tlsRootCertFiles /opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config/peerOrganizations/admin.iu-network.com/peers/peer0.admin.iu-network.com/tls/ca.crt \
-        --version $CHAINCODE_VERSION \
-        --sequence $CHAINCODE_SEQUENCE
-    
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}✅ Chaincode committed successfully${NC}"
-    else
-        echo -e "${RED}❌ Failed to commit chaincode${NC}"
-        exit 1
-    fi
+# Commit chaincode definition
+commitChaincode() {
+    setGlobals 1
+    echo -e "${BLUE}🧾 Committing chaincode definition...${NC}"
+    docker exec cli peer lifecycle chaincode commit \
+        -o orderer.iu-network.com:7050 --ordererTLSHostnameOverride orderer.iu-network.com \
+        --channelID ${CHANNEL_NAME} --name ${CHAINCODE_NAME} --version ${CHAINCODE_VERSION} \
+        --sequence ${CHAINCODE_SEQUENCE} --tls --cafile ${ORDERER_CA} \
+        --peerAddresses peer0.creditor.iu-network.com:7051 --tlsRootCertFiles ${CREDITOR_ORG_PATH}/peers/peer0.creditor.iu-network.com/tls/ca.crt \
+        --peerAddresses peer0.debtor.iu-network.com:8051 --tlsRootCertFiles ${DEBTOR_ORG_PATH}/peers/peer0.debtor.iu-network.com/tls/ca.crt \
+        --peerAddresses peer0.admin.iu-network.com:9051 --tlsRootCertFiles ${ADMIN_ORG_PATH}/peers/peer0.admin.iu-network.com/tls/ca.crt
 }
 
-# Query committed chaincode
-queryCommitted() {
-    echo -e "${YELLOW}🔍 Querying committed chaincode...${NC}"
-    
-    docker exec \
-        -e CORE_PEER_LOCALMSPID="CreditorMSP" \
-        -e CORE_PEER_ADDRESS="peer0.creditor.iu-network.com:7051" \
-        -e CORE_PEER_TLS_ROOTCERT_FILE="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config/peerOrganizations/creditor.iu-network.com/peers/peer0.creditor.iu-network.com/tls/ca.crt" \
-        -e CORE_PEER_MSPCONFIGPATH="/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config/peerOrganizations/creditor.iu-network.com/users/Admin@creditor.iu-network.com/msp" \
-        cli peer lifecycle chaincode querycommitted --channelID $CHANNEL_NAME
+# Init (if needed)
+invokeInit() {
+    setGlobals 1
+    echo -e "${BLUE}🚀 Invoking InitLedger...${NC}"
+    docker exec cli peer chaincode invoke -o orderer.iu-network.com:7050 \
+        --ordererTLSHostnameOverride orderer.iu-network.com --tls --cafile ${ORDERER_CA} \
+        -C ${CHANNEL_NAME} -n ${CHAINCODE_NAME} \
+        --peerAddresses peer0.creditor.iu-network.com:7051 --tlsRootCertFiles ${CREDITOR_ORG_PATH}/peers/peer0.creditor.iu-network.com/tls/ca.crt \
+        --peerAddresses peer0.debtor.iu-network.com:8051 --tlsRootCertFiles ${DEBTOR_ORG_PATH}/peers/peer0.debtor.iu-network.com/tls/ca.crt \
+        --peerAddresses peer0.admin.iu-network.com:9051 --tlsRootCertFiles ${ADMIN_ORG_PATH}/peers/peer0.admin.iu-network.com/tls/ca.crt \
+        -c '{"function":"InitLedger","Args":[]}' || true
 }
 
-# Main execution flow
 main() {
-    echo -e "${BLUE}Starting chaincode deployment process...${NC}"
-    echo "Channel: $CHANNEL_NAME"
-    echo "Chaincode: $CHAINCODE_NAME"
-    echo "Version: $CHAINCODE_VERSION"
-    echo "Sequence: $CHAINCODE_SEQUENCE"
-    echo ""
-    
-    # Verify containers are running
     verifyContainers
-    
-    # Package chaincode
     packageChaincode
-    
-    # Install chaincode on all peers
-    installChaincode 1  # Creditor
-    installChaincode 2  # Debtor  
-    installChaincode 3  # Admin
-    
-    # Approve chaincode for all organizations
-    approveForMyOrg 1  # Creditor
-    approveForMyOrg 2  # Debtor
-    approveForMyOrg 3  # Admin
-    
-    # Check commit readiness
+    installChaincode 1
+    installChaincode 2
+    installChaincode 3
+    queryInstalled 1
+    approveForMyOrg 1
+    queryInstalled 2
+    approveForMyOrg 2
+    queryInstalled 3
+    approveForMyOrg 3
     checkCommitReadiness
-    
-    # Commit chaincode
-    commitChaincodeDefinition
-    
-    # Query committed chaincode
-    queryCommitted
-    
-    echo ""
-    echo -e "${GREEN}🎉 Chaincode deployment completed successfully!${NC}"
-    echo -e "${BLUE}You can now invoke chaincode functions on channel: $CHANNEL_NAME${NC}"
-    
-    # Clean up temporary files
-    rm -f log.txt
+    commitChaincode
+    sleep 2
+    invokeInit
+    echo -e "${GREEN}🎉 Deployment finished${NC}"
 }
 
-# Run main function
 main "$@"

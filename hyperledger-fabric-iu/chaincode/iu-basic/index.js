@@ -314,6 +314,7 @@ class FinancialInformationUtilityContract extends Contract {
             }
 
             const updates = JSON.parse(updateData);
+            const deterministicTime = this._txTimestampISO(ctx);
             
             // Track changes in history
             const historyEntry = {
@@ -369,31 +370,21 @@ class FinancialInformationUtilityContract extends Contract {
     async QueryFinancialRecordsByCreditor(ctx, creditorId) {
         try {
             const clientMSPID = ctx.clientIdentity.getMSPID();
-            
-            // Build query selector
-            const queryString = {
-                selector: {
-                    docType: 'FinancialRecord',
-                    creditorId: creditorId
-                }
-            };
-
             const allResults = [];
-            const iterator = await ctx.stub.getQueryResult(JSON.stringify(queryString));
+            const iterator = await ctx.stub.getStateByRange('', '');
             let result = await iterator.next();
-            
             while (!result.done) {
                 const strValue = Buffer.from(result.value.value.toString()).toString('utf8');
-                const record = JSON.parse(strValue);
-                
-                // Check access permissions
-                if (record.accessPermissions[clientMSPID]) {
-                    allResults.push(record);
-                }
-                
+                try {
+                    const record = JSON.parse(strValue);
+                    if (record && record.docType === 'FinancialRecord' && record.creditorId === creditorId) {
+                        if (record.accessPermissions && record.accessPermissions[clientMSPID]) {
+                            allResults.push(record);
+                        }
+                    }
+                } catch (_) { /* skip non-JSON */ }
                 result = await iterator.next();
             }
-            
             await iterator.close();
             return JSON.stringify(allResults);
         } catch (error) {
@@ -410,30 +401,21 @@ class FinancialInformationUtilityContract extends Contract {
     async QueryFinancialRecordsByDebtor(ctx, debtorId) {
         try {
             const clientMSPID = ctx.clientIdentity.getMSPID();
-            
-            const queryString = {
-                selector: {
-                    docType: 'FinancialRecord',
-                    debtorId: debtorId
-                }
-            };
-
             const allResults = [];
-            const iterator = await ctx.stub.getQueryResult(JSON.stringify(queryString));
+            const iterator = await ctx.stub.getStateByRange('', '');
             let result = await iterator.next();
-            
             while (!result.done) {
                 const strValue = Buffer.from(result.value.value.toString()).toString('utf8');
-                const record = JSON.parse(strValue);
-                
-                // Check access permissions
-                if (record.accessPermissions[clientMSPID]) {
-                    allResults.push(record);
-                }
-                
+                try {
+                    const record = JSON.parse(strValue);
+                    if (record && record.docType === 'FinancialRecord' && record.debtorId === debtorId) {
+                        if (record.accessPermissions && record.accessPermissions[clientMSPID]) {
+                            allResults.push(record);
+                        }
+                    }
+                } catch (_) { /* skip non-JSON */ }
                 result = await iterator.next();
             }
-            
             await iterator.close();
             return JSON.stringify(allResults);
         } catch (error) {
@@ -661,6 +643,7 @@ class FinancialInformationUtilityContract extends Contract {
     async GrantAccess(ctx, recordId, organization) {
         try {
             const clientMSPID = ctx.clientIdentity.getMSPID();
+            const deterministicTime = this._txTimestampISO(ctx);
             
             // Only AdminMSP can grant access
             if (clientMSPID !== 'AdminMSP') {
@@ -709,6 +692,7 @@ class FinancialInformationUtilityContract extends Contract {
     async RevokeAccess(ctx, recordId, organization) {
         try {
             const clientMSPID = ctx.clientIdentity.getMSPID();
+            const deterministicTime = this._txTimestampISO(ctx);
             
             // Only AdminMSP can revoke access
             if (clientMSPID !== 'AdminMSP') {
@@ -776,6 +760,186 @@ class FinancialInformationUtilityContract extends Contract {
         }
     }
 
+    /**
+     * Submit a new SimpleLoan for approval
+     * @param {Context} ctx - The transaction context
+     * @param {String} loanId - Unique identifier for the loan
+     * @param {String} borrowerName - Name of the borrower
+     * @param {Number} loanAmount - Amount of the loan
+     * @param {String} loanStartDate - Start date of the loan
+     * @param {String} maturityDate - Maturity date of the loan
+     * @returns {String} Created SimpleLoan record
+     */
+    async SubmitSimpleLoan(ctx, loanId, borrowerName, loanAmount, loanStartDate, maturityDate) {
+        try {
+            const clientMSPID = ctx.clientIdentity.getMSPID();
+            if (clientMSPID !== 'CreditorMSP' && clientMSPID !== 'AdminMSP') {
+                throw new Error(`Organization ${clientMSPID} is not authorized to submit loans`);
+            }
+            const exists = await this.FinancialRecordExists(ctx, loanId);
+            if (exists) throw new Error(`Loan ${loanId} already exists`);
+            const deterministicTime = this._txTimestampISO(ctx);
+            const record = {
+                docType: 'SimpleLoan',
+                loanId,
+                borrowerName,
+                loanAmount,
+                loanStartDate,
+                maturityDate,
+                creditorMSP: clientMSPID,
+                status: 'awaiting-admin',
+                adminApproval: 'pending',
+                borrowerDecision: 'pending',
+                submittedAt: deterministicTime,
+                accessPermissions: { 'CreditorMSP': true, 'DebtorMSP': true, 'AdminMSP': true },
+                metadata: {
+                    createdAt: deterministicTime,
+                    lastModified: deterministicTime,
+                    version: '1.0',
+                    createdBy: clientMSPID
+                },
+                history: [
+                    { action: 'SUBMITTED', timestamp: deterministicTime, performedBy: clientMSPID, details: 'Simple loan submitted' }
+                ]
+            };
+            await ctx.stub.putState(loanId, Buffer.from(JSON.stringify(record)));
+            ctx.stub.setEvent('SimpleLoanSubmitted', Buffer.from(JSON.stringify({ loanId })));
+            return JSON.stringify(record);
+        } catch (err) {
+            throw new Error(`Failed to submit loan ${loanId}: ${err.message}`);
+        }
+    }
+
+    /**
+     * Approve a SimpleLoan as Admin
+     * @param {Context} ctx - The transaction context
+     * @param {String} loanId - ID of the loan to approve
+     * @returns {String} Updated SimpleLoan record
+     */
+    async ApproveLoanByAdmin(ctx, loanId) {
+        const clientMSPID = ctx.clientIdentity.getMSPID();
+        if (clientMSPID !== 'AdminMSP') throw new Error('Only AdminMSP can approve');
+        const loanJSON = await ctx.stub.getState(loanId);
+        if (!loanJSON || !loanJSON.length) throw new Error(`Loan ${loanId} not found`);
+        const loan = JSON.parse(loanJSON.toString());
+        if (loan.docType !== 'SimpleLoan') throw new Error('Not a SimpleLoan document');
+        const t = this._txTimestampISO(ctx);
+        loan.adminApproval = 'approved';
+        loan.status = (loan.borrowerDecision === 'approved') ? 'confirmed' : 'awaiting-borrower';
+        loan.metadata.lastModified = t;
+        loan.metadata.version = (parseFloat(loan.metadata.version || '1.0') + 0.1).toFixed(1);
+        loan.history.push({ action: 'ADMIN_APPROVED', timestamp: t, performedBy: clientMSPID, details: 'Admin approved loan' });
+        await ctx.stub.putState(loanId, Buffer.from(JSON.stringify(loan)));
+        ctx.stub.setEvent('SimpleLoanAdminApproved', Buffer.from(JSON.stringify({ loanId, status: loan.status })));
+        return JSON.stringify(loan);
+    }
+
+    /**
+     * Reject a SimpleLoan as Admin
+     * @param {Context} ctx - The transaction context
+     * @param {String} loanId - ID of the loan to reject
+     * @param {String} reason - Reason for rejection
+     * @returns {String} Updated SimpleLoan record
+     */
+    async RejectLoanByAdmin(ctx, loanId, reason) {
+        const clientMSPID = ctx.clientIdentity.getMSPID();
+        if (clientMSPID !== 'AdminMSP') throw new Error('Only AdminMSP can reject');
+        const loanJSON = await ctx.stub.getState(loanId);
+        if (!loanJSON || !loanJSON.length) throw new Error(`Loan ${loanId} not found`);
+        const loan = JSON.parse(loanJSON.toString());
+        if (loan.docType !== 'SimpleLoan') throw new Error('Not a SimpleLoan document');
+        const t = this._txTimestampISO(ctx);
+        loan.adminApproval = 'rejected';
+        loan.status = 'rejected-by-admin';
+        loan.rejectionReason = reason || 'Rejected by admin';
+        loan.metadata.lastModified = t;
+        loan.metadata.version = (parseFloat(loan.metadata.version || '1.0') + 0.1).toFixed(1);
+        loan.history.push({ action: 'ADMIN_REJECTED', timestamp: t, performedBy: clientMSPID, details: loan.rejectionReason });
+        await ctx.stub.putState(loanId, Buffer.from(JSON.stringify(loan)));
+        ctx.stub.setEvent('SimpleLoanAdminRejected', Buffer.from(JSON.stringify({ loanId })));
+        return JSON.stringify(loan);
+    }
+
+    /**
+     * Approve a SimpleLoan by the borrower
+     * @param {Context} ctx - The transaction context
+     * @param {String} loanId - ID of the loan to approve
+     * @returns {String} Updated SimpleLoan record
+     */
+    async ApproveLoanByBorrower(ctx, loanId) {
+        const clientMSPID = ctx.clientIdentity.getMSPID();
+        if (clientMSPID !== 'DebtorMSP') throw new Error('Only DebtorMSP can approve');
+        const loanJSON = await ctx.stub.getState(loanId);
+        if (!loanJSON || !loanJSON.length) throw new Error(`Loan ${loanId} not found`);
+        const loan = JSON.parse(loanJSON.toString());
+        if (loan.docType !== 'SimpleLoan') throw new Error('Not a SimpleLoan document');
+        const t = this._txTimestampISO(ctx);
+        loan.borrowerDecision = 'approved';
+        loan.status = (loan.adminApproval === 'approved') ? 'confirmed' : 'awaiting-admin';
+        loan.metadata.lastModified = t;
+        loan.metadata.version = (parseFloat(loan.metadata.version || '1.0') + 0.1).toFixed(1);
+        loan.history.push({ action: 'BORROWER_APPROVED', timestamp: t, performedBy: clientMSPID, details: 'Borrower approved loan' });
+        await ctx.stub.putState(loanId, Buffer.from(JSON.stringify(loan)));
+        ctx.stub.setEvent('SimpleLoanBorrowerApproved', Buffer.from(JSON.stringify({ loanId, status: loan.status })));
+        return JSON.stringify(loan);
+    }
+
+    /**
+     * Reject a SimpleLoan by the borrower
+     * @param {Context} ctx - The transaction context
+     * @param {String} loanId - ID of the loan to reject
+     * @param {String} reason - Reason for rejection
+     * @returns {String} Updated SimpleLoan record
+     */
+    async RejectLoanByBorrower(ctx, loanId, reason) {
+        const clientMSPID = ctx.clientIdentity.getMSPID();
+        if (clientMSPID !== 'DebtorMSP') throw new Error('Only DebtorMSP can reject');
+        const loanJSON = await ctx.stub.getState(loanId);
+        if (!loanJSON || !loanJSON.length) throw new Error(`Loan ${loanId} not found`);
+        const loan = JSON.parse(loanJSON.toString());
+        if (loan.docType !== 'SimpleLoan') throw new Error('Not a SimpleLoan document');
+        const t = this._txTimestampISO(ctx);
+        loan.borrowerDecision = 'rejected';
+        loan.status = 'rejected-by-borrower';
+        loan.rejectionReason = reason || 'Rejected by borrower';
+        loan.metadata.lastModified = t;
+        loan.metadata.version = (parseFloat(loan.metadata.version || '1.0') + 0.1).toFixed(1);
+        loan.history.push({ action: 'BORROWER_REJECTED', timestamp: t, performedBy: clientMSPID, details: loan.rejectionReason });
+        await ctx.stub.putState(loanId, Buffer.from(JSON.stringify(loan)));
+        ctx.stub.setEvent('SimpleLoanBorrowerRejected', Buffer.from(JSON.stringify({ loanId })));
+        return JSON.stringify(loan);
+    }
+
+    /**
+     * Get all SimpleLoan records with access control
+     * @param {Context} ctx - The transaction context
+     * @returns {String} Array of SimpleLoan records
+     */
+    async GetSimpleLoans(ctx) {
+        try {
+            const clientMSPID = ctx.clientIdentity.getMSPID();
+            const results = [];
+            const iterator = await ctx.stub.getStateByRange('', '');
+            for (let res = await iterator.next(); !res.done; res = await iterator.next()) {
+                const str = Buffer.from(res.value.value.toString()).toString('utf8');
+                try {
+                    const obj = JSON.parse(str);
+                    if (obj && obj.docType === 'SimpleLoan') {
+                        // Basic access control: allow AdminMSP full access; others only if permissions true
+                        if (clientMSPID === 'AdminMSP' || (obj.accessPermissions && obj.accessPermissions[clientMSPID])) {
+                            results.push(obj);
+                        }
+                    }
+                } catch (_) { /* ignore non-JSON states */ }
+            }
+            await iterator.close();
+            return JSON.stringify(results);
+        } catch (error) {
+            throw new Error(`Failed to get simple loans: ${error.message}`);
+        }
+    }
 }
 
-module.exports = FinancialInformationUtilityContract;
+// Export contract for Hyperledger Fabric
+module.exports.FinancialInformationUtilityContract = FinancialInformationUtilityContract;
+module.exports.contracts = [ FinancialInformationUtilityContract ];

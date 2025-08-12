@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import { initLedger, storeDocumentHash } from './services/fabric.js';
 import documentsRouter from './routes/documents.js';
+import loansRouter from './routes/loans.js';
 
 const app = express();
 const PORT = process.env.PORT || 4001;
@@ -41,6 +42,9 @@ app.post('/api/sample/document-hash', async (req, res) => {
 
 // Documents router (upload + DB + Fabric hash)
 app.use('/api/documents', documentsRouter);
+
+// Loans router (simple loan approval workflow on Fabric)
+app.use('/api/loans', loansRouter);
 
 app.listen(PORT, () => {
   // eslint-disable-next-line no-console
