@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: creditor-dashboard-db
+    environment:
+      POSTGRES_USER: creditor_user
+      POSTGRES_PASSWORD: creditor_pass
+      POSTGRES_DB: creditor_dashboard
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    networks:
+      - creditor-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: creditor-cache
+    ports:
+      - "6379:6379"
+    networks:
+      - creditor-network
+
+volumes:
+  postgres_data:
+
+networks:
+  creditor-network:
+    driver: bridge

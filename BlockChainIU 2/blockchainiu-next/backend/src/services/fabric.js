@@ -1,5 +1,5 @@
 import fs from 'fs';
-import { Gateway, Wallets } from 'fabric-network';
+import { Gateway, Wallets, DefaultEventHandlerStrategies } from 'fabric-network';
 
 const channelName = process.env.FABRIC_CHANNEL || 'financial-operations-channel';
 const chaincodeName = process.env.FABRIC_CHAINCODE || 'iu-basic';
@@ -33,6 +33,10 @@ async function getContractFor(org = 'admin') {
     wallet,
     identity: identityLabel,
     discovery: { enabled: false, asLocalhost: true },
+    eventHandlerOptions: {
+      commitTimeout: 120,
+      strategy: DefaultEventHandlerStrategies.NETWORK_SCOPE_ANYFORTX,
+    },
   });
   const network = await gateway.getNetwork(channelName);
   const contract = network.getContract(chaincodeName);
@@ -84,7 +88,10 @@ export async function approveLoanByAdmin(loanId, org = 'admin') {
   const { contract, gateway } = await getContractFor(org);
   try {
     const tx = contract.createTransaction('ApproveLoanByAdmin');
-    tx.setEndorsingOrganizations('CreditorMSP','DebtorMSP');
+    tx.setEndorsingPeers([
+      'peer0.creditor.iu-network.com',
+      'peer0.debtor.iu-network.com'
+    ]);
     const result = await tx.submit(loanId);
     return JSON.parse(result.toString());
   } finally {
@@ -96,7 +103,10 @@ export async function rejectLoanByAdmin(loanId, reason, org = 'admin') {
   const { contract, gateway } = await getContractFor(org);
   try {
     const tx = contract.createTransaction('RejectLoanByAdmin');
-    tx.setEndorsingOrganizations('CreditorMSP','DebtorMSP');
+    tx.setEndorsingPeers([
+      'peer0.creditor.iu-network.com',
+      'peer0.debtor.iu-network.com'
+    ]);
     const result = await tx.submit(loanId, reason || '');
     return JSON.parse(result.toString());
   } finally {
@@ -108,7 +118,10 @@ export async function approveLoanByBorrower(loanId, org = 'debtor') {
   const { contract, gateway } = await getContractFor(org);
   try {
     const tx = contract.createTransaction('ApproveLoanByBorrower');
-    tx.setEndorsingOrganizations('CreditorMSP','DebtorMSP');
+    tx.setEndorsingPeers([
+      'peer0.creditor.iu-network.com',
+      'peer0.debtor.iu-network.com'
+    ]);
     const result = await tx.submit(loanId);
     return JSON.parse(result.toString());
   } finally {
@@ -120,7 +133,10 @@ export async function rejectLoanByBorrower(loanId, reason, org = 'debtor') {
   const { contract, gateway } = await getContractFor(org);
   try {
     const tx = contract.createTransaction('RejectLoanByBorrower');
-    tx.setEndorsingOrganizations('CreditorMSP','DebtorMSP');
+    tx.setEndorsingPeers([
+      'peer0.creditor.iu-network.com',
+      'peer0.debtor.iu-network.com'
+    ]);
     const result = await tx.submit(loanId, reason || '');
     return JSON.parse(result.toString());
   } finally {
@@ -131,7 +147,12 @@ export async function rejectLoanByBorrower(loanId, reason, org = 'debtor') {
 export async function getSimpleLoans(org = 'admin') {
   const { contract, gateway } = await getContractFor(org);
   try {
-    const result = await contract.evaluateTransaction('GetSimpleLoans');
+    const tx = contract.createTransaction('GetSimpleLoans');
+    tx.setEndorsingPeers([
+      'peer0.creditor.iu-network.com',
+      'peer0.debtor.iu-network.com'
+    ]);
+    const result = await tx.evaluate();
     return JSON.parse(result.toString());
   } finally {
     await gateway.disconnect();

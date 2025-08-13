@@ -250,6 +250,12 @@ export default function CreditorDashboard() {
     }
   };
 
+  // Helper: compute total exposure from on-chain records (numeric amounts only)
+  const totalExposure = submittedRecords.reduce((acc, r) => {
+    const n = parseFloat(String(r.loanAmount || '').replace(/[^0-9.]/g, ''));
+    return acc + (Number.isFinite(n) ? n : 0);
+  }, 0);
+
   return (
     <div className="font-inter bg-gray-100 min-h-screen">
       <header className="bg-white shadow-md p-4 sticky top-0 z-50 flex justify-between items-center">
@@ -285,7 +291,7 @@ export default function CreditorDashboard() {
         </div>
         <div className="card bg-white rounded-lg shadow p-6 text-center">
           <h2 className="text-blue-800 font-bold mb-2">Total Exposure</h2>
-          <div className="text-3xl font-bold text-blue-600">₹2.4K Cr</div>
+          <div className="text-3xl font-bold text-blue-600">₹{new Intl.NumberFormat('en-IN').format(Math.round(totalExposure))}</div>
         </div>
       </div>
 
@@ -322,17 +328,28 @@ export default function CreditorDashboard() {
                 </div>
               </div>
             ))}
+            {!submittedRecords.length && (
+              <div className="text-gray-500">No recent activity</div>
+            )}
           </div>
           <div className="panel bg-white rounded-lg shadow p-6">
             <h3 className="font-bold text-lg mb-4">Pending Actions</h3>
-            <div className="loan-item border border-gray-200 rounded-lg p-4 mb-2">
-              Loan Expiring Soon<br />
-              <small>Reliance Capital - Due in 3 days</small>
-            </div>
-            <div className="loan-item border border-gray-200 rounded-lg p-4">
-              Monthly Report Ready<br />
-              <small>December 2024 compliance report</small>
-            </div>
+            {(submittedRecords.filter(r => ['awaiting-admin','awaiting-borrower'].includes(r.status)).slice(0,3)).map((r) => (
+              <div key={(r.loanId || r.transactionId) + '-pending'} className="loan-item border border-gray-200 rounded-lg p-4 mb-2">
+                <div className="flex justify-between">
+                  <div>
+                    <div className="font-semibold">{r.borrowerName}</div>
+                    <small>{(r.submittedAt || r.loanStartDate || '').slice(0,10)}</small>
+                  </div>
+                  <span className="inline-block bg-yellow-100 text-yellow-800 border border-yellow-300 rounded-full px-2 py-0.5 text-xs font-bold">
+                    {statusLabel(r.status)}
+                  </span>
+                </div>
+              </div>
+            ))}
+            {!submittedRecords.filter(r => ['awaiting-admin','awaiting-borrower'].includes(r.status)).length && (
+              <div className="text-gray-500">Nothing pending right now</div>
+            )}
           </div>
         </div>
       )}

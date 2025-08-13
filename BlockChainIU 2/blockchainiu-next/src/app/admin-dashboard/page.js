@@ -28,8 +28,14 @@ export default function AdminDashboard() {
     if (!loggedInUser || loggedInUser.role !== 'Admin') {
       alert('Unauthorized access. Please login as Admin.');
       window.location.href = '/';
+      return;
     }
     loadLoanRecords();
+    // Auto-refresh when tab focused and on interval
+    const onVis = () => { if (document.visibilityState === 'visible') loadLoanRecords(); };
+    document.addEventListener('visibilitychange', onVis);
+    const timer = setInterval(loadLoanRecords, 15000);
+    return () => { document.removeEventListener('visibilitychange', onVis); clearInterval(timer); };
   }, []);
 
   const logout = () => {
@@ -116,6 +122,7 @@ export default function AdminDashboard() {
       <nav className="navbar bg-white shadow-md sticky top-0 z-50 p-4 flex justify-between items-center">
         <div className="container nav-container flex items-center gap-4">
           <div className="logo font-bold text-blue-800 text-xl select-none">🔗 BlockchainIU</div>
+          <button onClick={loadLoanRecords} className="bg-blue-100 text-blue-800 px-3 py-1 rounded-lg hover:bg-blue-200">{loanLoading ? 'Refreshing...' : 'Refresh'}</button>
           <button
             id="logoutBtn"
             onClick={logout}

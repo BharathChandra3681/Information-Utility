@@ -14,6 +14,10 @@ export default function BorrowerDashboard() {
       return;
     }
     loadLoans();
+    const onVis = () => { if (document.visibilityState === 'visible') loadLoans(); };
+    document.addEventListener('visibilitychange', onVis);
+    const timer = setInterval(loadLoans, 15000);
+    return () => { document.removeEventListener('visibilitychange', onVis); clearInterval(timer); };
   }, []);
 
   const logout = () => {
@@ -124,7 +128,7 @@ export default function BorrowerDashboard() {
                   <p className="text-sm text-gray-600 mb-1">Loan Period: {(record.loanStartDate || '') + (record.maturityDate ? ` → ${record.maturityDate}` : '')}</p>
                   <p className="text-sm text-gray-600 mb-1">Current Status: Awaiting Your Approval</p>
                   <p className="text-sm mb-2"><strong>Amount:</strong> {record.loanAmount}</p>
-                  <p className="text-sm mb-2"><strong>Asset Records:</strong> {record.assets}</p>
+                  <p className="text-sm mb-2"><strong>Asset Records:</strong> {record.assetRecords || record.assets || '-'}</p>
                   <p className="text-sm mb-2"><strong>Balance Sheet Summary:</strong> {record.balanceSheet || '-'}</p>
                   <p className="text-sm mb-4"><strong>Existing Liabilities:</strong> {record.existingLiabilities || '-'}</p>
                   <div className="action-buttons flex gap-4">

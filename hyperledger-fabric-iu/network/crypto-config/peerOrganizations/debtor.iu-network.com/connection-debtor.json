@@ -18,6 +18,15 @@
       "grpcOptions": {
         "ssl-target-name-override": "peer0.debtor.iu-network.com"
       }
+    },
+    "peer0.creditor.iu-network.com": {
+      "url": "grpcs://localhost:7051",
+      "tlsCACerts": {
+        "path": "/Users/bharathchandranangunuri/Information Utility/hyperledger-fabric-iu/network/organizations/peerOrganizations/creditor.iu-network.com/peers/peer0.creditor.iu-network.com/tls/ca.crt"
+      },
+      "grpcOptions": {
+        "ssl-target-name-override": "peer0.creditor.iu-network.com"
+      }
     }
   },
   "orderers": {
@@ -35,7 +44,8 @@
     "financial-operations-channel": {
       "orderers": ["orderer.iu-network.com"],
       "peers": {
-        "peer0.debtor.iu-network.com": {}
+        "peer0.debtor.iu-network.com": {},
+        "peer0.creditor.iu-network.com": {}
       }
     }
   }
