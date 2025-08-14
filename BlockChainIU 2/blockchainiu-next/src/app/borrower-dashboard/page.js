@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 export default function BorrowerDashboard() {
   const [activeTab, setActiveTab] = useState('pending-review');
   const [loanRecords, setLoanRecords] = useState({ pending: [], confirmed: [], rejected: [] });
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const loggedInUser = JSON.parse(localStorage.getItem('loggedInUser'));
@@ -27,7 +28,8 @@ export default function BorrowerDashboard() {
 
   const loadLoans = async () => {
     try {
-      const res = await fetch('/api/loans?org=debtor');
+      setLoading(true);
+      const res = await fetch(`/api/loans?org=debtor&t=${Date.now()}`, { cache: 'no-store' });
       const data = await res.json();
       const all = Array.isArray(data) ? data.filter(r => r.docType === 'SimpleLoan') : [];
       const pending = all.filter(r => r.status === 'awaiting-borrower');
@@ -36,25 +38,35 @@ export default function BorrowerDashboard() {
       setLoanRecords({ pending, confirmed, rejected });
     } catch (_) {
       setLoanRecords({ pending: [], confirmed: [], rejected: [] });
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleConfirm = async (loanId) => {
     try {
-      const res = await fetch(`/api/loans/${encodeURIComponent(loanId)}/borrower/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org: 'debtor' }) });
-      if (!res.ok) throw new Error((await res.json()).error || 'Confirm failed');
+      await fetch(`/api/loans/${encodeURIComponent(loanId)}/borrower/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ org: 'debtor' }),
+      });
       await loadLoans();
-    } catch (e) { alert(e.message); }
+    } catch {
+      alert('Approval failed');
+    }
   };
 
   const handleReject = async (loanId) => {
     try {
-      const reason = prompt('Please provide a reason for rejection:');
-      if (!reason) return;
-      const res = await fetch(`/api/loans/${encodeURIComponent(loanId)}/borrower/reject`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org: 'debtor', reason }) });
-      if (!res.ok) throw new Error((await res.json()).error || 'Reject failed');
+      await fetch(`/api/loans/${encodeURIComponent(loanId)}/borrower/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'Rejected by borrower', org: 'debtor' }),
+      });
       await loadLoans();
-    } catch (e) { alert(e.message); }
+    } catch {
+      alert('Rejection failed');
+    }
   };
 
   const getTabCounts = () => ({

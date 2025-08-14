@@ -82,43 +82,57 @@ router.post('/:loanId/borrower/reject', async (req, res) => {
 // List loans (aggregate across orgs; de-duplicate by id; prefer freshest record)
 router.get('/', async (req, res) => {
   try {
+    // prevent stale responses
+    res.set('Cache-Control', 'no-store');
+
     const primary = (req.query.org || 'admin').toLowerCase();
+    const borrowerId = (req.query.borrowerId || '').toString().trim();
     const orgs = Array.from(new Set([primary, 'creditor', 'debtor']));
 
     const byId = new Map();
     let lastErr = null;
 
+    const statusOrder = (s) => {
+      const order = ['unconfirmed', 'awaiting-admin', 'awaiting-borrower', 'confirmed', 'rejected'];
+      const i = order.indexOf((s || '').toLowerCase());
+      return i < 0 ? -1 : i;
+    };
+    const ts = (r) =>
+      Date.parse(r?.updatedAt || r?.lastUpdated || r?.submittedAt || r?.loanStartDate || '') || 0;
+
     for (const org of orgs) {
       try {
         const list = await getSimpleLoans(org);
         if (!Array.isArray(list)) continue;
+
         for (const r of list) {
-          const id = r?.loanId || r?.recordId || r?.id;
+          const id = r?.loanId || r?.recordId || r?.id; // fixed: no bitwise ops
           if (!id) continue;
-          const existing = byId.get(id);
-          const timeOf = (o) => new Date(o?.metadata?.lastModified || o?.submittedAt || o?.loanStartDate || 0).getTime();
-          if (!existing || timeOf(r) >= timeOf(existing)) {
+          if (borrowerId && r?.borrowerId && r.borrowerId !== borrowerId) continue;
+
+          const current = byId.get(id);
+          if (!current) {
             byId.set(id, r);
+          } else {
+            const a = current, b = r;
+            const newer =
+              ts(b) > ts(a) ||
+              (ts(b) === ts(a) && statusOrder(b?.status) > statusOrder(a?.status));
+            if (newer) byId.set(id, r);
           }
         }
       } catch (e) {
-        lastErr = e; // keep for debugging, but continue trying other orgs
-        continue;
+        lastErr = e;
       }
     }
 
-    const combined = Array.from(byId.values())
-      .filter(r => r?.docType === 'SimpleLoan')
-      .sort((a, b) => new Date(b?.submittedAt || b?.loanStartDate || 0) - new Date(a?.submittedAt || a?.loanStartDate || 0));
-
-    // If everything failed and nothing combined, surface the last error to help debug
-    if (!combined.length && lastErr) {
-      return res.json([]); // keep response shape, UI handles empty array; logs carry errors
+    const merged = Array.from(byId.values()).sort((a, b) => ts(b) - ts(a));
+    if (!merged.length && lastErr) {
+      return res.status(500).json({ error: fabricError(lastErr) });
     }
-
-    res.json(combined);
+    return res.json(merged);
   } catch (err) {
-    res.status(500).json({ error: fabricError(err) });
+    return res.status(500).json({ error: fabricError(err) });
   }
 });
 

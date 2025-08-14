@@ -5,8 +5,8 @@ volumes:
   peer0.admin.iu-network.com:
 
 networks:
-  iu-network:
-    name: fabric_iu_network
+  fabric_iu_network:
+    driver: bridge
 
 services:
   # Certificate Authorities
@@ -28,7 +28,7 @@ services:
     volumes:
       - ./organizations/fabric-ca/creditor:/etc/hyperledger/fabric-ca-server
     networks:
-      - iu-network
+      - fabric_iu_network
 
   ca.debtor.iu-network.com:
     container_name: ca.debtor.iu-network.com
@@ -48,7 +48,7 @@ services:
     volumes:
       - ./organizations/fabric-ca/debtor:/etc/hyperledger/fabric-ca-server
     networks:
-      - iu-network
+      - fabric_iu_network
 
   ca.admin.iu-network.com:
     container_name: ca.admin.iu-network.com
@@ -68,7 +68,7 @@ services:
     volumes:
       - ./organizations/fabric-ca/admin:/etc/hyperledger/fabric-ca-server
     networks:
-      - iu-network
+      - fabric_iu_network
 
   # Orderer
   orderer.iu-network.com:
@@ -112,7 +112,12 @@ services:
       - 7053:7053
       - 9443:9443
     networks:
-      - iu-network
+      - fabric_iu_network
+    healthcheck:
+      test: ["CMD-SHELL", "bash -lc 'ss -lnt | grep :7050'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
 
   # Creditor Peer
   peer0.creditor.iu-network.com:
@@ -165,10 +170,15 @@ services:
     working_dir: /root
     command: peer node start
     ports:
-      - 7051:7051
-      - 9444:9444
+      - "7051:7051"   # peer gRPC
+      - "9444:9444"   # admin (peer node status)
+    healthcheck:
+      test: ["CMD-SHELL", "bash -lc 'ss -lnt | grep :7051'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
     networks:
-      - iu-network
+      - fabric_iu_network
 
   # Debtor Peer
   peer0.debtor.iu-network.com:
@@ -194,7 +204,7 @@ services:
       - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.debtor.iu-network.com:8051
       - CORE_PEER_LOCALMSPID=DebtorMSP
       - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/fabric/msp
-      - CORE_OPERATIONS_LISTENADDRESS=peer0.debtor.iu-network.com:9445
+      - CORE_OPERATIONS_LISTENADDRESS=peer0.debtor.iu-network.com:9444
       - CORE_METRICS_PROVIDER=prometheus
       - CORE_CHAINCODE_EXECUTETIMEOUT=300s
       - CORE_CHAINCODE_NODE_RUNTIME=hyperledger/fabric-nodeenv:2.5
@@ -221,10 +231,15 @@ services:
     working_dir: /root
     command: peer node start
     ports:
-      - 8051:8051
-      - 9445:9445
+      - "8051:7051"
+      - "9445:9444"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -lc 'ss -lnt | grep :8051'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
     networks:
-      - iu-network
+      - fabric_iu_network
 
   # Admin Peer
   peer0.admin.iu-network.com:
@@ -250,7 +265,7 @@ services:
       - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.admin.iu-network.com:9051
       - CORE_PEER_LOCALMSPID=AdminMSP
       - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/fabric/msp
-      - CORE_OPERATIONS_LISTENADDRESS=peer0.admin.iu-network.com:9446
+      - CORE_OPERATIONS_LISTENADDRESS=peer0.admin.iu-network.com:9444
       - CORE_METRICS_PROVIDER=prometheus
       - CORE_CHAINCODE_EXECUTETIMEOUT=300s
       - CORE_CHAINCODE_NODE_RUNTIME=hyperledger/fabric-nodeenv:2.5
@@ -277,10 +292,15 @@ services:
     working_dir: /root
     command: peer node start
     ports:
-      - 9051:9051
-      - 9446:9446
+      - "9051:7051"
+      - "9446:9444"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -lc 'ss -lnt | grep :9051'"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
     networks:
-      - iu-network
+      - fabric_iu_network
 
   # CLI container with enhanced chaincode support
   cli:
@@ -324,31 +344,31 @@ services:
       - peer0.debtor.iu-network.com
       - peer0.admin.iu-network.com
     networks:
-      - iu-network
+      - fabric_iu_network
 
   couchdb.creditor.iu-network.com:
-    container_name: couchdb.creditor.iu-network.com
-    image: couchdb:3.2
+    image: couchdb:3.3
+    platform: linux/amd64
     environment:
       - COUCHDB_USER=admin
       - COUCHDB_PASSWORD=adminpw
     ports:
       - 5984:5984
     networks:
-      - iu-network
+      - fabric_iu_network
   couchdb.debtor.iu-network.com:
-    container_name: couchdb.debtor.iu-network.com
-    image: couchdb:3.2
+    image: couchdb:3.3
+    platform: linux/amd64
     environment:
       - COUCHDB_USER=admin
       - COUCHDB_PASSWORD=adminpw
     networks:
-      - iu-network
+      - fabric_iu_network
   couchdb.admin.iu-network.com:
-    container_name: couchdb.admin.iu-network.com
-    image: couchdb:3.2
+    image: couchdb:3.3
+    platform: linux/amd64
     environment:
       - COUCHDB_USER=admin
       - COUCHDB_PASSWORD=adminpw
     networks:
-      - iu-network
+      - fabric_iu_network

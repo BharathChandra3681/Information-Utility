@@ -48,36 +48,43 @@ export default function AdminDashboard() {
   };
 
   // Load loan records from backend
-  const loadLoanRecords = async () => {
+  async function loadLoanRecords() {
     try {
       setLoanLoading(true);
-      const res = await fetch('/api/loans?org=admin');
+      const res = await fetch(`/api/loans?org=admin&t=${Date.now()}`, { cache: 'no-store' });
       const data = await res.json();
-      setLoanRecords(Array.isArray(data) ? data.filter(r => r.docType === 'SimpleLoan') : []);
-    } catch (_) {
-      setLoanRecords([]);
+      setLoanRecords(Array.isArray(data) ? data : []);
     } finally {
       setLoanLoading(false);
     }
-  };
+  }
 
-  const adminApprove = async (id) => {
+  async function adminApprove(loanId) {
     try {
-      const res = await fetch(`/api/loans/${encodeURIComponent(id)}/admin/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org: 'admin' }) });
-      if (!res.ok) throw new Error((await res.json()).error || 'Approve failed');
+      await fetch(`/api/loans/${encodeURIComponent(loanId)}/admin/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ org: 'admin' }),
+      });
       await loadLoanRecords();
-      alert('Approved on-chain');
-    } catch (e) { alert(e.message); }
-  };
+      closeDetails();
+    } catch {
+      alert('Approval failed');
+    }
+  }
 
-  const adminReject = async (id) => {
+  async function adminReject(loanId) {
     try {
-      const reason = prompt('Reason for rejection?') || '';
-      const res = await fetch(`/api/loans/${encodeURIComponent(id)}/admin/reject`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org: 'admin', reason }) });
-      if (!res.ok) throw new Error((await res.json()).error || 'Reject failed');
+      await fetch(`/api/loans/${encodeURIComponent(loanId)}/admin/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'Rejected by admin', org: 'admin' }),
+      });
       await loadLoanRecords();
-      alert('Rejected on-chain');
-    } catch (e) { alert(e.message); }
+      closeDetails();
+    } catch {
+      alert('Rejection failed');
+    }
   };
 
   const openDetails = (record) => { setDetailsRecord(record); setDetailsOpen(true); };

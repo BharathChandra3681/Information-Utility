@@ -43,11 +43,11 @@ export default function CreditorDashboard() {
 
   const fetchLoans = async () => {
     try {
-      const res = await fetch('/api/loans?org=creditor');
+      const res = await fetch(`/api/loans?org=creditor&t=${Date.now()}`, { cache: 'no-store' });
       const data = await res.json();
       const list = Array.isArray(data) ? data : [];
-      setSubmittedRecords(list.filter(r => r.docType === 'SimpleLoan'));
-    } catch (_) {
+      setSubmittedRecords(list.filter(r => r.docType === 'SimpleLoan' || r.loanId));
+    } catch {
       setSubmittedRecords([]);
     }
   };
