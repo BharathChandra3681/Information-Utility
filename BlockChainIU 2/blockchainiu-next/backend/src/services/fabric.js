@@ -31,8 +31,8 @@ async function getContractFor(org = 'admin') {
   const gateway = new Gateway();
   await gateway.connect(ccp, {
     wallet,
-    identity: identityLabel,
-    discovery: { enabled: false, asLocalhost: true },
+    identity,                  // e.g., 'admin' from creditor wallet
+    discovery: { enabled: true, asLocalhost: true }  // KEY FIX
   });
   const network = await gateway.getNetwork(channelName);
   const contract = network.getContract(chaincodeName);

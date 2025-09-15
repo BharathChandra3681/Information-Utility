@@ -6,7 +6,7 @@ import documentsRouter from './routes/documents.js';
 import loansRouter from './routes/loans.js';
 
 const app = express();
-const PORT = process.env.PORT || 4001;
+const DEFAULT_PORT = parseInt(process.env.PORT || '4001', 10);
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -46,8 +46,23 @@ app.use('/api/documents', documentsRouter);
 // Loans router (simple loan approval workflow on Fabric)
 app.use('/api/loans', loansRouter);
 
-app.listen(PORT, () => {
-  // eslint-disable-next-line no-console
-  console.log(`Backend listening on port ${PORT}`);
+const server = app.listen(DEFAULT_PORT, () => {
+  console.log(`Backend listening on :${DEFAULT_PORT}`);
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${DEFAULT_PORT} already in use. Stop the other process or set PORT in .env`);
+  } else {
+    console.error('Server error:', err);
+  }
+  process.exit(1);
+});
+
+['SIGINT','SIGTERM'].forEach(sig => {
+  process.on(sig, () => {
+    console.log('Shutting down...');
+    server.close(() => process.exit(0));
+  });
 });
 

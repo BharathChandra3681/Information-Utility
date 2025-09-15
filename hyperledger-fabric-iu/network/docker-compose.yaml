@@ -3,6 +3,9 @@ volumes:
   peer0.creditor.iu-network.com:
   peer0.debtor.iu-network.com:
   peer0.admin.iu-network.com:
+  couchdb_creditor_data:
+  couchdb_debtor_data:
+  couchdb_admin_data:
 
 networks:
   iu-network:
@@ -29,6 +32,8 @@ services:
       - ./organizations/fabric-ca/creditor:/etc/hyperledger/fabric-ca-server
     networks:
       - iu-network
+    restart: unless-stopped
+    platform: linux/amd64
 
   ca.debtor.iu-network.com:
     container_name: ca.debtor.iu-network.com
@@ -49,6 +54,8 @@ services:
       - ./organizations/fabric-ca/debtor:/etc/hyperledger/fabric-ca-server
     networks:
       - iu-network
+    restart: unless-stopped
+    platform: linux/amd64
 
   ca.admin.iu-network.com:
     container_name: ca.admin.iu-network.com
@@ -69,6 +76,8 @@ services:
       - ./organizations/fabric-ca/admin:/etc/hyperledger/fabric-ca-server
     networks:
       - iu-network
+    restart: unless-stopped
+    platform: linux/amd64
 
   # Orderer
   orderer.iu-network.com:
@@ -108,11 +117,12 @@ services:
       - ./channel-artifacts:/channel-artifacts:ro
       - orderer.iu-network.com:/var/hyperledger/production/orderer
     ports:
-      - 7050:7050
-      - 7053:7053
-      - 9443:9443
+      - "7050:7050"     # add
+      - "9443:9443"
     networks:
       - iu-network
+    restart: unless-stopped
+    platform: linux/amd64
 
   # Creditor Peer
   peer0.creditor.iu-network.com:
@@ -141,11 +151,10 @@ services:
       - CORE_OPERATIONS_LISTENADDRESS=peer0.creditor.iu-network.com:9444
       - CORE_METRICS_PROVIDER=prometheus
       - CORE_CHAINCODE_EXECUTETIMEOUT=300s
-      - CORE_CHAINCODE_NODE_RUNTIME=hyperledger/fabric-nodeenv:2.5
+      - CORE_CHAINCODE_NODE_RUNTIME=hyperledger/fabric-nodeenv:2.5.12
       - CORE_CHAINCODE_BUILDER=hyperledger/fabric-ccenv:2.5.12
       - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
       - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=fabric_iu_network
-      # FIXED: Chaincode deployment configuration
       - CORE_CHAINCODE_LOGGING_LEVEL=DEBUG
       - CORE_CHAINCODE_LOGGING_SHIM=DEBUG
       - CORE_PEER_GOSSIP_USELEADERELECTION=true
@@ -165,10 +174,15 @@ services:
     working_dir: /root
     command: peer node start
     ports:
-      - 7051:7051
-      - 9444:9444
+      - "7051:7051"
+      - "9444:9444"
+    depends_on:
+      couchdb.creditor.iu-network.com:
+        condition: service_healthy
     networks:
       - iu-network
+    restart: unless-stopped
+    platform: linux/amd64
 
   # Debtor Peer
   peer0.debtor.iu-network.com:
@@ -197,11 +211,10 @@ services:
       - CORE_OPERATIONS_LISTENADDRESS=peer0.debtor.iu-network.com:9445
       - CORE_METRICS_PROVIDER=prometheus
       - CORE_CHAINCODE_EXECUTETIMEOUT=300s
-      - CORE_CHAINCODE_NODE_RUNTIME=hyperledger/fabric-nodeenv:2.5
+      - CORE_CHAINCODE_NODE_RUNTIME=hyperledger/fabric-nodeenv:2.5.12
       - CORE_CHAINCODE_BUILDER=hyperledger/fabric-ccenv:2.5.12
       - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
       - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=fabric_iu_network
-      # FIXED: Chaincode deployment configuration
       - CORE_CHAINCODE_LOGGING_LEVEL=DEBUG
       - CORE_CHAINCODE_LOGGING_SHIM=DEBUG
       - CORE_PEER_GOSSIP_USELEADERELECTION=true
@@ -221,10 +234,15 @@ services:
     working_dir: /root
     command: peer node start
     ports:
-      - 8051:8051
-      - 9445:9445
+      - "8051:7051"
+      - "9445:9445"
+    depends_on:
+      couchdb.debtor.iu-network.com:
+        condition: service_healthy
     networks:
       - iu-network
+    restart: unless-stopped
+    platform: linux/amd64
 
   # Admin Peer
   peer0.admin.iu-network.com:
@@ -253,11 +271,10 @@ services:
       - CORE_OPERATIONS_LISTENADDRESS=peer0.admin.iu-network.com:9446
       - CORE_METRICS_PROVIDER=prometheus
       - CORE_CHAINCODE_EXECUTETIMEOUT=300s
-      - CORE_CHAINCODE_NODE_RUNTIME=hyperledger/fabric-nodeenv:2.5
+      - CORE_CHAINCODE_NODE_RUNTIME=hyperledger/fabric-nodeenv:2.5.12
       - CORE_CHAINCODE_BUILDER=hyperledger/fabric-ccenv:2.5.12
       - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
       - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=fabric_iu_network
-      # FIXED: Chaincode deployment configuration
       - CORE_CHAINCODE_LOGGING_LEVEL=DEBUG
       - CORE_CHAINCODE_LOGGING_SHIM=DEBUG
       - CORE_PEER_GOSSIP_USELEADERELECTION=true
@@ -277,10 +294,15 @@ services:
     working_dir: /root
     command: peer node start
     ports:
-      - 9051:9051
-      - 9446:9446
+      - "9051:7051"
+      - "9446:9446"
+    depends_on:
+      couchdb.admin.iu-network.com:
+        condition: service_healthy
     networks:
       - iu-network
+    restart: unless-stopped
+    platform: linux/amd64
 
   # CLI container with enhanced chaincode support
   cli:
@@ -304,7 +326,6 @@ services:
       - CORE_PEER_MSPCONFIGPATH=/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config/peerOrganizations/creditor.iu-network.com/users/Admin@creditor.iu-network.com/msp
       - CORE_VM_ENDPOINT=unix:///host/var/run/docker.sock
       - CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=fabric_iu_network
-      # FIXED: Chaincode builder environment variables
       - CORE_CHAINCODE_BUILDER=hyperledger/fabric-ccenv:2.5.12
       - CORE_CHAINCODE_NODE_RUNTIME=hyperledger/fabric-nodeenv:2.5
       - CORE_CHAINCODE_LOGGING_LEVEL=DEBUG
@@ -314,7 +335,6 @@ services:
       - /var/run/docker.sock:/host/var/run/docker.sock
       - ./crypto-config:/opt/gopath/src/github.com/hyperledger/fabric/peer/crypto-config
       - ./scripts:/opt/gopath/src/github.com/hyperledger/fabric/peer/scripts
-      # FIXED: Proper chaincode volume mounting - ensure this path exists
       - ../chaincode:/opt/gopath/src/github.com/chaincode
       - ./configtx.yaml:/etc/hyperledger/peercfg/configtx.yaml
       - ./core.yaml:/etc/hyperledger/peercfg/core.yaml
@@ -325,30 +345,65 @@ services:
       - peer0.admin.iu-network.com
     networks:
       - iu-network
+    restart: unless-stopped
+    platform: linux/amd64
 
   couchdb.creditor.iu-network.com:
     container_name: couchdb.creditor.iu-network.com
-    image: couchdb:3.2
+    image: couchdb:3.3
+    platform: linux/amd64
     environment:
       - COUCHDB_USER=admin
       - COUCHDB_PASSWORD=adminpw
-    ports:
-      - 5984:5984
+    volumes:
+      - couchdb_creditor_data:/opt/couchdb/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:5984/ || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
     networks:
-      - iu-network
+      iu-network:
+        aliases:
+          - couchdb.creditor.iu-network.com
+
   couchdb.debtor.iu-network.com:
     container_name: couchdb.debtor.iu-network.com
-    image: couchdb:3.2
+    image: couchdb:3.3
+    platform: linux/amd64
     environment:
       - COUCHDB_USER=admin
       - COUCHDB_PASSWORD=adminpw
+    volumes:
+      - couchdb_debtor_data:/opt/couchdb/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:5984/ || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
     networks:
-      - iu-network
+      iu-network:
+        aliases:
+          - couchdb.debtor.iu-network.com
+
   couchdb.admin.iu-network.com:
     container_name: couchdb.admin.iu-network.com
-    image: couchdb:3.2
+    image: couchdb:3.3
+    platform: linux/amd64
     environment:
       - COUCHDB_USER=admin
       - COUCHDB_PASSWORD=adminpw
+    volumes:
+      - couchdb_admin_data:/opt/couchdb/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:5984/ || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
     networks:
-      - iu-network
+      iu-network:
+        aliases:
+          - couchdb.admin.iu-network.com

@@ -6,7 +6,7 @@ const path = require('path');
 const fs = require('fs');
 
 // Import MSP routes
-const mspRoutes = require('./msp-management/msp-routes');
+// const mspRoutes = require('./msp-management/msp-routes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -17,7 +17,7 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 // MSP Management Routes
-app.use('/api/msp', mspRoutes);
+// app.use('/api/msp', mspRoutes);
 
 // Fabric Network Configuration
 const financialOperationsChannel = 'financial-operations-channel';
@@ -28,17 +28,17 @@ const chaincodeName = 'iu-basic';
 const orgConfigs = {
     creditor: {
         mspId: 'CreditorMSP',
-        connectionProfilePath: path.resolve(__dirname, '..', 'network', 'organizations', 'peerOrganizations', 'creditor.iu-network.com', 'connection-creditor.json'),
+        connectionProfilePath: path.resolve(__dirname, '..', '..', 'network', 'organizations', 'peerOrganizations', 'creditor.iu-network.com', 'connection-creditor.json'),
         walletPath: path.join(__dirname, 'wallet-creditor')
     },
     debtor: {
         mspId: 'DebtorMSP',
-        connectionProfilePath: path.resolve(__dirname, '..', 'network', 'organizations', 'peerOrganizations', 'debtor.iu-network.com', 'connection-debtor.json'),
+        connectionProfilePath: path.resolve(__dirname, '..', '..', 'network', 'organizations', 'peerOrganizations', 'debtor.iu-network.com', 'connection-debtor.json'),
         walletPath: path.join(__dirname, 'wallet-debtor')
     },
     admin: {
         mspId: 'AdminMSP',
-        connectionProfilePath: path.resolve(__dirname, '..', 'network', 'organizations', 'peerOrganizations', 'admin.iu-network.com', 'connection-admin.json'),
+        connectionProfilePath: path.resolve(__dirname, '..', '..', 'network', 'organizations', 'peerOrganizations', 'admin.iu-network.com', 'connection-admin.json'),
         walletPath: path.join(__dirname, 'wallet-admin')
     }
 };

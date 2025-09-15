@@ -2,9 +2,29 @@
 
 import { useState, useEffect } from 'react';
 
+// Client-only component to prevent hydration issues
+function ClientOnlyTime({ date }) {
+  const [mounted, setMounted] = useState(false);
+  
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  
+  if (!mounted) {
+    return <span className="text-sm text-gray-500">Last updated: --:--:--</span>;
+  }
+  
+  return (
+    <span className="text-sm text-gray-500">
+      Last updated: {date.toISOString().slice(11, 19)}
+    </span>
+  );
+}
+
 export default function BorrowerDashboard() {
   const [activeTab, setActiveTab] = useState('pending-review');
   const [loanRecords, setLoanRecords] = useState({ pending: [], confirmed: [], rejected: [] });
+  const [lastRefresh, setLastRefresh] = useState(new Date());
 
   useEffect(() => {
     const loggedInUser = JSON.parse(localStorage.getItem('loggedInUser'));
@@ -16,6 +36,17 @@ export default function BorrowerDashboard() {
     loadLoans();
   }, []);
 
+
+  // Additional effect to ensure data is always fresh
+  useEffect(() => {
+    const interval = setInterval(() => {
+      console.log('🔄 Auto-refresh triggered');
+      loadLoans();
+    }, 10000); // Refresh every 10 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
   const logout = () => {
     localStorage.removeItem('loggedInUser');
     window.location.href = '/';
@@ -23,34 +54,100 @@ export default function BorrowerDashboard() {
 
   const loadLoans = async () => {
     try {
-      const res = await fetch('/api/loans?org=debtor');
+      console.log('🔄 Loading loans for debtor dashboard...');
+      // Use temporary backend while Fabric issues are resolved
+      const res = await fetch('http://localhost:4002/api/loans?org=debtor');
       const data = await res.json();
+      console.log('📋 Received data:', data);
+      
       const all = Array.isArray(data) ? data.filter(r => r.docType === 'SimpleLoan') : [];
-      const pending = all.filter(r => r.status === 'awaiting-borrower');
+      const pending = all.filter(r => r.status === 'awaiting-borrower' || r.status === 'awaiting-admin');
       const confirmed = all.filter(r => r.status === 'confirmed');
       const rejected = all.filter(r => r.status === 'rejected-by-borrower' || r.status === 'rejected-by-admin');
-      setLoanRecords({ pending, confirmed, rejected });
-    } catch (_) {
+      
+      console.log('📊 Filtered data:', { 
+        total: all.length,
+        pending: pending.length, 
+        confirmed: confirmed.length, 
+        rejected: rejected.length 
+      });
+      console.log('📊 Pending loans:', pending.map(p => ({ id: p.loanId, status: p.status, borrower: p.borrowerName })));
+      console.log('📊 Confirmed loans:', confirmed.map(c => ({ id: c.loanId, status: c.status, borrower: c.borrowerName })));
+      console.log('📊 Rejected loans:', rejected.map(r => ({ id: r.loanId, status: r.status, borrower: r.borrowerName })));
+      
+      // Force state update by creating new objects and ensuring proper state management
+      const newLoanRecords = { 
+        pending: [...pending], 
+        confirmed: [...confirmed], 
+        rejected: [...rejected] 
+      };
+      
+      console.log('🔄 Setting new loan records:', newLoanRecords);
+      setLoanRecords(newLoanRecords);
+      setLastRefresh(new Date());
+      
+    } catch (error) {
+      console.error('❌ Error loading loans:', error);
       setLoanRecords({ pending: [], confirmed: [], rejected: [] });
     }
   };
 
   const handleConfirm = async (loanId) => {
     try {
-      const res = await fetch(`/api/loans/${encodeURIComponent(loanId)}/borrower/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org: 'debtor' }) });
+      console.log('✅ Approving loan:', loanId);
+      // Use temporary backend while Fabric issues are resolved
+      const res = await fetch(`http://localhost:4002/api/loans/${encodeURIComponent(loanId)}/borrower/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org: 'debtor' }) });
       if (!res.ok) throw new Error((await res.json()).error || 'Confirm failed');
+      console.log('✅ Loan approved, reloading data...');
+      
+      // Immediate reload
       await loadLoans();
-    } catch (e) { alert(e.message); }
+      
+      // Additional reloads to ensure data consistency
+      setTimeout(async () => {
+        console.log('🔄 Secondary reload after approval...');
+        await loadLoans();
+      }, 1000);
+      
+      setTimeout(async () => {
+        console.log('🔄 Final reload after approval...');
+        await loadLoans();
+      }, 2000);
+      
+      alert('Loan approved successfully!');
+    } catch (e) { 
+      console.error('❌ Error approving loan:', e);
+      alert(e.message); 
+    }
   };
 
   const handleReject = async (loanId) => {
     try {
       const reason = prompt('Please provide a reason for rejection:');
       if (!reason) return;
-      const res = await fetch(`/api/loans/${encodeURIComponent(loanId)}/borrower/reject`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org: 'debtor', reason }) });
+      // Use temporary backend while Fabric issues are resolved
+      const res = await fetch(`http://localhost:4002/api/loans/${encodeURIComponent(loanId)}/borrower/reject`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org: 'debtor', reason }) });
       if (!res.ok) throw new Error((await res.json()).error || 'Reject failed');
+      
+      // Immediate reload
       await loadLoans();
-    } catch (e) { alert(e.message); }
+      
+      // Additional reloads to ensure data consistency
+      setTimeout(async () => {
+        console.log('🔄 Secondary reload after rejection...');
+        await loadLoans();
+      }, 1000);
+      
+      setTimeout(async () => {
+        console.log('🔄 Final reload after rejection...');
+        await loadLoans();
+      }, 2000);
+      
+      alert('Loan rejected successfully!');
+    } catch (e) { 
+      console.error('❌ Error rejecting loan:', e);
+      alert(e.message); 
+    }
   };
 
   const getTabCounts = () => ({
@@ -77,8 +174,15 @@ export default function BorrowerDashboard() {
       </nav>
 
       <main className="container mx-auto p-6">
-        <h1 className="text-2xl font-bold mb-2">Corporate Debtor Dashboard</h1>
-        <p className="mb-6 text-gray-700">Review and manage submitted loan records</p>
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h1 className="text-2xl font-bold mb-2">Corporate Debtor Dashboard</h1>
+            <p className="text-gray-700">Review and manage submitted loan records</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <ClientOnlyTime date={lastRefresh} />
+          </div>
+        </div>
 
         <section className="overview-cards grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="card bg-white p-6 rounded-lg shadow">
@@ -113,23 +217,143 @@ export default function BorrowerDashboard() {
           ))}
         </section>
 
+
         <section className="dashboard-content">
           {activeTab === 'pending-review' && (
             <div>
+              <div className="mb-4 flex justify-between items-center">
+                <h3 className="text-lg font-semibold">Pending Review ({loanRecords.pending.length})</h3>
+                <button
+                  onClick={() => {
+                    console.log('🔄 Pending tab refresh triggered');
+                    loadLoans();
+                  }}
+                  className="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition text-sm"
+                >
+                  🔄 Refresh
+                </button>
+              </div>
               {loanRecords.pending.map(record => (
-                <div key={record.loanId || record.transactionId} className="loan-record border border-gray-200 rounded-lg p-6 mb-4 bg-white shadow">
-                  <h2 className="text-xl font-bold mb-2">{record.creditorName || 'Creditor'}</h2>
-                  <p className="text-sm text-gray-600 mb-1">Loan ID: {record.loanId || record.transactionId}</p>
-                  <p className="text-sm text-gray-600 mb-1">Submitted Date: {(record.submittedAt || record.loanStartDate || '').slice(0,10)}</p>
-                  <p className="text-sm text-gray-600 mb-1">Loan Period: {(record.loanStartDate || '') + (record.maturityDate ? ` → ${record.maturityDate}` : '')}</p>
-                  <p className="text-sm text-gray-600 mb-1">Current Status: Awaiting Your Approval</p>
-                  <p className="text-sm mb-2"><strong>Amount:</strong> {record.loanAmount}</p>
-                  <p className="text-sm mb-2"><strong>Asset Records:</strong> {record.assets}</p>
-                  <p className="text-sm mb-2"><strong>Balance Sheet Summary:</strong> {record.balanceSheet || '-'}</p>
-                  <p className="text-sm mb-4"><strong>Existing Liabilities:</strong> {record.existingLiabilities || '-'}</p>
-                  <div className="action-buttons flex gap-4">
-                    <button onClick={() => handleReject(record.loanId || record.transactionId)} className="btn bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition">Reject Record</button>
-                    <button onClick={() => handleConfirm(record.loanId || record.transactionId)} className="btn bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition">Confirm Record</button>
+                <div key={record.loanId || record.transactionId} className="loan-record border border-gray-200 rounded-lg p-6 mb-6 bg-white shadow-lg">
+                  {/* Header Section */}
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <h2 className="text-2xl font-bold text-blue-800 mb-1">{record.creditorName || 'Creditor'}</h2>
+                      <p className="text-sm text-gray-500">Loan ID: {record.loanId || record.transactionId}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className="bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-semibold">
+                        Awaiting Your Approval
+                      </span>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Submitted: {(record.createdAt || record.submittedAt || record.loanStartDate || '').slice(0,10)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Loan Details Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    {/* Financial Information */}
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h3 className="text-lg font-semibold text-gray-800 mb-3">💰 Financial Details</h3>
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Loan Amount:</span>
+                          <span className="text-sm font-semibold text-green-600">₹{record.loanAmount || 'N/A'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Start Date:</span>
+                          <span className="text-sm font-medium">{record.loanStartDate || 'N/A'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Maturity Date:</span>
+                          <span className="text-sm font-medium">{record.maturityDate || 'N/A'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Loan Duration:</span>
+                          <span className="text-sm font-medium">
+                            {record.loanStartDate && record.maturityDate ? 
+                              `${Math.ceil((new Date(record.maturityDate) - new Date(record.loanStartDate)) / (1000 * 60 * 60 * 24 * 30))} months` : 
+                              'N/A'
+                            }
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Borrower Information */}
+                    <div className="bg-gray-50 p-4 rounded-lg">
+                      <h3 className="text-lg font-semibold text-gray-800 mb-3">🏢 Borrower Information</h3>
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Company Name:</span>
+                          <span className="text-sm font-medium">{record.borrowerName || 'N/A'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Organization:</span>
+                          <span className="text-sm font-medium">{record.org || 'N/A'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Document Type:</span>
+                          <span className="text-sm font-medium">{record.docType || 'N/A'}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-gray-600">Submitted By:</span>
+                          <span className="text-sm font-medium">{record.submittedBy || 'N/A'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Additional Information */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    {/* Asset Information */}
+                    <div className="bg-blue-50 p-4 rounded-lg">
+                      <h3 className="text-lg font-semibold text-blue-800 mb-3">📊 Asset Records</h3>
+                      <div className="space-y-2">
+                        <div>
+                          <span className="text-sm text-gray-600 block mb-1">Assets:</span>
+                          <span className="text-sm font-medium">{record.assets || 'No asset information provided'}</span>
+                        </div>
+                        <div>
+                          <span className="text-sm text-gray-600 block mb-1">Balance Sheet:</span>
+                          <span className="text-sm font-medium">{record.balanceSheet || 'No balance sheet provided'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Liability Information */}
+                    <div className="bg-red-50 p-4 rounded-lg">
+                      <h3 className="text-lg font-semibold text-red-800 mb-3">📋 Liability Information</h3>
+                      <div className="space-y-2">
+                        <div>
+                          <span className="text-sm text-gray-600 block mb-1">Existing Liabilities:</span>
+                          <span className="text-sm font-medium">{record.existingLiabilities || 'No existing liabilities reported'}</span>
+                        </div>
+                        <div>
+                          <span className="text-sm text-gray-600 block mb-1">Risk Assessment:</span>
+                          <span className="text-sm font-medium">
+                            {record.loanAmount && parseFloat(record.loanAmount) > 1000000 ? 'High Value Loan' : 'Standard Loan'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex justify-end gap-4 pt-4 border-t border-gray-200">
+                    <button 
+                      onClick={() => handleReject(record.loanId || record.transactionId)} 
+                      className="btn bg-red-600 text-white px-6 py-3 rounded-lg hover:bg-red-700 transition font-semibold flex items-center gap-2"
+                    >
+                      ❌ Reject Loan
+                    </button>
+                    <button 
+                      onClick={() => handleConfirm(record.loanId || record.transactionId)} 
+                      className="btn bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition font-semibold flex items-center gap-2"
+                    >
+                      ✅ Approve Loan
+                    </button>
                   </div>
                 </div>
               ))}
@@ -139,7 +363,18 @@ export default function BorrowerDashboard() {
 
           {activeTab === 'confirmed' && (
             <div>
-              <h3 className="text-xl font-bold mb-4">Confirmed Loan Records</h3>
+              <div className="mb-4 flex justify-between items-center">
+                <h3 className="text-xl font-bold">Confirmed Loan Records ({loanRecords.confirmed.length})</h3>
+                <button
+                  onClick={() => {
+                    console.log('🔄 Confirmed tab refresh triggered');
+                    loadLoans();
+                  }}
+                  className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition text-sm"
+                >
+                  🔄 Refresh
+                </button>
+              </div>
               <p className="mb-4">Records you have confirmed and verified</p>
               {loanRecords.confirmed.map(record => (
                 <div key={record.loanId || record.transactionId} className="loan-item border border-gray-200 rounded-lg p-4 mb-4 bg-white shadow">
@@ -162,7 +397,18 @@ export default function BorrowerDashboard() {
 
           {activeTab === 'rejected' && (
             <div>
-              <h3 className="text-xl font-bold mb-4">Rejected Loan Records</h3>
+              <div className="mb-4 flex justify-between items-center">
+                <h3 className="text-xl font-bold">Rejected Loan Records ({loanRecords.rejected.length})</h3>
+                <button
+                  onClick={() => {
+                    console.log('🔄 Rejected tab refresh triggered');
+                    loadLoans();
+                  }}
+                  className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition text-sm"
+                >
+                  🔄 Refresh
+                </button>
+              </div>
               <p className="mb-4">Records you have disputed or rejected</p>
               {loanRecords.rejected.map(record => (
                 <div key={record.loanId || record.transactionId} className="loan-item border border-gray-200 rounded-lg p-4 mb-4 bg-white shadow">

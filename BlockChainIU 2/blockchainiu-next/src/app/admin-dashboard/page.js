@@ -11,6 +11,8 @@ export default function AdminDashboard() {
   const [loanLoading, setLoanLoading] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [detailsRecord, setDetailsRecord] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [lastRefresh, setLastRefresh] = useState(new Date());
 
   const statusLabel = (s) => ({
     unconfirmed: 'Unconfirmed',
@@ -32,6 +34,24 @@ export default function AdminDashboard() {
     loadLoanRecords();
   }, []);
 
+  // Force reload when refreshKey changes
+  useEffect(() => {
+    if (refreshKey > 0) {
+      console.log('🔄 Refresh key changed, reloading loan records...');
+      loadLoanRecords();
+    }
+  }, [refreshKey]);
+
+  // Additional effect to ensure data is always fresh
+  useEffect(() => {
+    const interval = setInterval(() => {
+      console.log('🔄 Auto-refresh triggered');
+      loadLoanRecords();
+    }, 10000); // Refresh every 10 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
   const logout = () => {
     localStorage.removeItem('loggedInUser');
     window.location.href = '/';
@@ -45,10 +65,17 @@ export default function AdminDashboard() {
   const loadLoanRecords = async () => {
     try {
       setLoanLoading(true);
-      const res = await fetch('/api/loans?org=admin');
+      console.log('🔄 Loading loans for admin dashboard...');
+      // Use temporary backend while Fabric issues are resolved
+      const res = await fetch('http://localhost:4002/api/loans?org=admin');
       const data = await res.json();
-      setLoanRecords(Array.isArray(data) ? data.filter(r => r.docType === 'SimpleLoan') : []);
-    } catch (_) {
+      console.log('📋 Received data:', data);
+      const filteredData = Array.isArray(data) ? data.filter(r => r.docType === 'SimpleLoan') : [];
+      console.log('📊 Filtered data count:', filteredData.length);
+      setLoanRecords(filteredData);
+      setLastRefresh(new Date());
+    } catch (error) {
+      console.error('❌ Error loading loans:', error);
       setLoanRecords([]);
     } finally {
       setLoanLoading(false);
@@ -57,20 +84,39 @@ export default function AdminDashboard() {
 
   const adminApprove = async (id) => {
     try {
-      const res = await fetch(`/api/loans/${encodeURIComponent(id)}/admin/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org: 'admin' }) });
+      console.log('✅ Admin approving loan:', id);
+      // Use temporary backend while Fabric issues are resolved
+      const res = await fetch(`http://localhost:4002/api/loans/${encodeURIComponent(id)}/admin/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org: 'admin' }) });
       if (!res.ok) throw new Error((await res.json()).error || 'Approve failed');
+      console.log('✅ Loan approved, reloading data...');
       await loadLoanRecords();
-      alert('Approved on-chain');
-    } catch (e) { alert(e.message); }
+      setRefreshKey(prev => prev + 1); // Force re-render
+      // Force another reload after a short delay to ensure data is fresh
+      setTimeout(async () => {
+        await loadLoanRecords();
+        setRefreshKey(prev => prev + 1);
+      }, 500);
+      setTimeout(() => alert('Loan approved successfully!'), 100); // Small delay to ensure UI updates
+    } catch (e) { 
+      console.error('❌ Error approving loan:', e);
+      alert(e.message); 
+    }
   };
 
   const adminReject = async (id) => {
     try {
       const reason = prompt('Reason for rejection?') || '';
-      const res = await fetch(`/api/loans/${encodeURIComponent(id)}/admin/reject`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org: 'admin', reason }) });
+      // Use temporary backend while Fabric issues are resolved
+      const res = await fetch(`http://localhost:4002/api/loans/${encodeURIComponent(id)}/admin/reject`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org: 'admin', reason }) });
       if (!res.ok) throw new Error((await res.json()).error || 'Reject failed');
       await loadLoanRecords();
-      alert('Rejected on-chain');
+      setRefreshKey(prev => prev + 1); // Force re-render
+      // Force another reload after a short delay to ensure data is fresh
+      setTimeout(async () => {
+        await loadLoanRecords();
+        setRefreshKey(prev => prev + 1);
+      }, 500);
+      setTimeout(() => alert('Loan rejected successfully!'), 100); // Small delay to ensure UI updates
     } catch (e) { alert(e.message); }
   };
 
@@ -112,7 +158,7 @@ export default function AdminDashboard() {
   const confirmedCount = loanRecords.filter(r => r.status === 'confirmed').length;
 
   return (
-    <div className="font-inter bg-gray-100 min-h-screen">
+    <div key={refreshKey} className="font-inter bg-gray-100 min-h-screen">
       <nav className="navbar bg-white shadow-md sticky top-0 z-50 p-4 flex justify-between items-center">
         <div className="container nav-container flex items-center gap-4">
           <div className="logo font-bold text-blue-800 text-xl select-none">🔗 BlockchainIU</div>
@@ -127,8 +173,27 @@ export default function AdminDashboard() {
       </nav>
 
       <main className="container mx-auto p-6">
-        <h1 className="text-blue-800 font-bold text-2xl mb-2">Admin Dashboard</h1>
-        <p className="mb-6 text-gray-700">Information Utility Authority - Monitor and audit blockchain records</p>
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h1 className="text-blue-800 font-bold text-2xl mb-2">Admin Dashboard</h1>
+            <p className="text-gray-700">Review and manage loan records and document verification</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <span className="text-sm text-gray-500">
+              Last updated: {lastRefresh.toLocaleTimeString()}
+            </span>
+            <button
+              onClick={() => {
+                console.log('🔄 Manual refresh triggered');
+                loadLoanRecords();
+                setRefreshKey(prev => prev + 1);
+              }}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
+            >
+              🔄 Refresh
+            </button>
+          </div>
+        </div>
 
         <section className="overview-cards grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
           <div className="card bg-white p-6 rounded-lg shadow hover:shadow-lg transition">

@@ -1,0 +1,49 @@
+{
+    "name": "iu-network-creditor",
+    "version": "1.0.0",
+    "client": {
+        "organization": "Creditor",
+        "connection": {
+            "timeout": {
+                "peer": {
+                    "endorser": "300"
+                }
+            }
+        }
+    },
+    "organizations": {
+        "Creditor": {
+            "mspid": "CreditorMSP",
+            "peers": [
+                "peer0.creditor.iu-network.com"
+            ],
+            "certificateAuthorities": [
+                "ca.creditor.iu-network.com"
+            ]
+        }
+    },
+    "peers": {
+        "peer0.creditor.iu-network.com": {
+            "url": "grpcs://localhost:7051",
+            "tlsCACerts": {
+                "pem": "-----BEGIN CERTIFICATE-----\nMIIC8zCCApqgAwIBAgIRAMouinss55U0VqLxhzou8cMwCgYIKoZIzj0EAwIwgbsx\nCzAJBgNVBAYTAklOMRQwEgYDVQQIEwtNYWhhcmFzaHRyYTEPMA0GA1UEBxMGTXVt\nYmFpMRswGQYDVQQJExIxMjMgRmluYW5jZSBTdHJlZXQxIDAeBgNVBAoTF2NyZWRp\ndG9yLml1LW5ldHdvcmsuY29tMR4wHAYDVQQLExVGaW5hbmNpYWwgSW5zdGl0dXRp\nb24xJjAkBgNVBAMTHXRsc2NhLmNyZWRpdG9yLml1LW5ldHdvcmsuY29tMB4XDTI1\nMDkxMjIxMDAwMFoXDTM1MDkxMDIxMDAwMFowgZkxCzAJBgNVBAYTAklOMRQwEgYD\nVQQIEwtNYWhhcmFzaHRyYTEPMA0GA1UEBxMGTXVtYmFpMRswGQYDVQQJExIxMjMg\nRmluYW5jZSBTdHJlZXQxHjAcBgNVBAsTFUZpbmFuY2lhbCBJbnN0aXR1dGlvbjEm\nMCQGA1UEAxMdcGVlcjAuY3JlZGl0b3IuaXUtbmV0d29yay5jb20wWTATBgcqhkjO\nPQIBBggqhkjOPQMBBwNCAAT7XuF0bZx8DU0Iu1O2tRlZ6787K7l3Ze77FD5LIp+O\nHxL9GWBC+uKjXcNRyL78pFEifBc+4I7UoxhFUS2A4ugmo4GeMIGbMA4GA1UdDwEB\n/wQEAwIFoDAdBgNVHSUEFjAUBggrBgEFBQcDAQYIKwYBBQUHAwIwDAYDVR0TAQH/\nBAIwADArBgNVHSMEJDAigCCrHR61MCQIIO7hN258UKCGe2/3Gt5rJ7OcknLdxaPH\n5TAvBgNVHREEKDAmgh1wZWVyMC5jcmVkaXRvci5pdS1uZXR3b3JrLmNvbYIFcGVl\ncjAwCgYIKoZIzj0EAwIDRwAwRAIgH7NtSC1yEX3epGfmctR1YxsS7fJsN6+E9Hln\nK4QCFUcCIGv7GZmQo+wf+pWWSx7bLr04KpAmjFYk9YVAlxol4cGg\n-----END CERTIFICATE-----"
+            },
+            "grpcOptions": {
+                "ssl-target-name-override": "peer0.creditor.iu-network.com",
+                "hostnameOverride": "peer0.creditor.iu-network.com"
+            }
+        }
+    },
+    "certificateAuthorities": {
+        "ca.creditor.iu-network.com": {
+            "url": "https://localhost:7054",
+            "caName": "ca-creditor",
+            "tlsCACerts": {
+                "pem": ["-----BEGIN CERTIFICATE-----\nMIIC3jCCAoOgAwIBAgIQedla1ffz7V6dtkHn1LASKzAKBggqhkjOPQQDAjCBuDEL\nMAkGA1UEBhMCSU4xFDASBgNVBAgTC01haGFyYXNodHJhMQ8wDQYDVQQHEwZNdW1i\nYWkxGzAZBgNVBAkTEjEyMyBGaW5hbmNlIFN0cmVldDEgMB4GA1UEChMXY3JlZGl0\nb3IuaXUtbmV0d29yay5jb20xHjAcBgNVBAsTFUZpbmFuY2lhbCBJbnN0aXR1dGlv\nbjEjMCEGA1UEAxMaY2EuY3JlZGl0b3IuaXUtbmV0d29yay5jb20wHhcNMjUwOTEy\nMjEwMDAwWhcNMzUwOTEwMjEwMDAwWjCBuDELMAkGA1UEBhMCSU4xFDASBgNVBAgT\nC01haGFyYXNodHJhMQ8wDQYDVQQHEwZNdW1iYWkxGzAZBgNVBAkTEjEyMyBGaW5h\nbmNlIFN0cmVldDEgMB4GA1UEChMXY3JlZGl0b3IuaXUtbmV0d29yay5jb20xHjAc\nBgNVBAsTFUZpbmFuY2lhbCBJbnN0aXR1dGlvbjEjMCEGA1UEAxMaY2EuY3JlZGl0\nb3IuaXUtbmV0d29yay5jb20wWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAASLyrzA\nHW4cJlvY1Ub4MCh00ee/JwB8ZBc8FuEdtEwcNR0KgqSbh68h1XbeoCzaJXe1Q+/B\niLobIv+oErPFIUC3o20wazAOBgNVHQ8BAf8EBAMCAaYwHQYDVR0lBBYwFAYIKwYB\nBQUHAwIGCCsGAQUFBwMBMA8GA1UdEwEB/wQFMAMBAf8wKQYDVR0OBCIEIOT0B+aD\nGVUbImnbWuTYHMuCfSEEzzH5ZUjBwSMIChxEMAoGCCqGSM49BAMCA0kAMEYCIQDD\ncGv8uC05km6x2vXwYovdI/be/7+idEN6g5BFFuiiwgIhAJvPP0MtfMva3I8410qe\nL8VC75UoCrcFFQM0VaEvyChP\n-----END CERTIFICATE-----"]
+            },
+            "httpOptions": {
+                "verify": false
+            }
+        }
+    }
+}

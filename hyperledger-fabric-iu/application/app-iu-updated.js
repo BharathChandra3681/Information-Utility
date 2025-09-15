@@ -24,17 +24,17 @@ const orgConfigs = {
         mspId: 'CreditorMSP',
         walletPath: path.join(__dirname, 'wallet-creditor'),
         // Using organizations path as confirmed working
-        connectionProfilePath: path.resolve(__dirname, '..', 'network', 'organizations', 'peerOrganizations', 'creditor.iu-network.com', 'connection-creditor.json')
+        connectionProfilePath: path.resolve(__dirname, '..', '..', 'network', 'organizations', 'peerOrganizations', 'creditor.iu-network.com', 'connection-creditor.json')
     },
     debtor: {
         mspId: 'DebtorMSP',
         walletPath: path.join(__dirname, 'wallet-debtor'),
-        connectionProfilePath: path.resolve(__dirname, '..', 'network', 'organizations', 'peerOrganizations', 'debtor.iu-network.com', 'connection-debtor.json')
+        connectionProfilePath: path.resolve(__dirname, '..', '..', 'network', 'organizations', 'peerOrganizations', 'debtor.iu-network.com', 'connection-debtor.json')
     },
     admin: {
         mspId: 'AdminMSP',
         walletPath: path.join(__dirname, 'wallet-admin'),
-        connectionProfilePath: path.resolve(__dirname, '..', 'network', 'organizations', 'peerOrganizations', 'admin.iu-network.com', 'connection-admin.json')
+        connectionProfilePath: path.resolve(__dirname, '..', '..', 'network', 'organizations', 'peerOrganizations', 'admin.iu-network.com', 'connection-admin.json')
     }
 };
 

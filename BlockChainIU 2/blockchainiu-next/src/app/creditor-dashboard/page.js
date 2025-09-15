@@ -26,6 +26,7 @@ export default function CreditorDashboard() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [detailsRecord, setDetailsRecord] = useState(null);
+  const [lastRefresh, setLastRefresh] = useState(new Date());
 
   useEffect(() => {
     // Check logged in user role
@@ -41,13 +42,28 @@ export default function CreditorDashboard() {
     loadMyDocs(loggedInUser?.email);
   }, []);
 
+  // Auto-refresh every 15 seconds to catch borrower approvals
+  useEffect(() => {
+    const interval = setInterval(() => {
+      console.log('🔄 Auto-refresh triggered for creditor dashboard');
+      fetchLoans();
+    }, 15000); // Refresh every 15 seconds
+
+    return () => clearInterval(interval);
+  }, []);
+
   const fetchLoans = async () => {
     try {
-      const res = await fetch('/api/loans?org=creditor');
+      console.log('🔄 Fetching loans for creditor dashboard...');
+      // Use temporary backend while Fabric issues are resolved
+      const res = await fetch('http://localhost:4002/api/loans?org=creditor');
       const data = await res.json();
       const list = Array.isArray(data) ? data : [];
       setSubmittedRecords(list.filter(r => r.docType === 'SimpleLoan'));
-    } catch (_) {
+      setLastRefresh(new Date());
+      console.log('✅ Loans fetched successfully, count:', list.filter(r => r.docType === 'SimpleLoan').length);
+    } catch (error) {
+      console.error('❌ Error fetching loans:', error);
       setSubmittedRecords([]);
     }
   };
@@ -171,7 +187,8 @@ export default function CreditorDashboard() {
     const loanId = `LOAN${Date.now()}`;
 
     try {
-      const res = await fetch('/api/loans', {
+      // Use temporary backend while Fabric issues are resolved
+      const res = await fetch('http://localhost:4002/api/loans', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ loanId, borrowerName: String(borrowerName).trim(), loanAmount: String(loanAmount).trim(), loanStartDate: startISO, maturityDate: maturityISO || '', org: 'creditor' })
@@ -192,7 +209,7 @@ export default function CreditorDashboard() {
         existingLiabilities: ''
       });
       setActiveTab('records');
-      alert('Loan submitted on-chain and awaiting admin approval');
+      alert('Loan submitted successfully!');
     } catch (err) {
       alert(err.message);
     }
@@ -256,14 +273,28 @@ export default function CreditorDashboard() {
         <div>
           <h1 className="text-blue-800 font-bold text-xl">Creditor Dashboard</h1>
           <p className="text-gray-600">HDFC Bank Ltd - Manage loan records and track verification status</p>
+          <p className="text-xs text-gray-500 mt-1">
+            Last updated: {lastRefresh.toISOString().slice(11, 19)}
+          </p>
         </div>
-        <button
-          id="logoutBtn"
-          onClick={logout}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
-        >
-          Logout
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              console.log('🔄 Manual refresh triggered from creditor dashboard');
+              fetchLoans();
+            }}
+            className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition shadow-lg font-semibold text-lg flex items-center gap-2"
+          >
+            🔄 Refresh Data
+          </button>
+          <button
+            id="logoutBtn"
+            onClick={logout}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+          >
+            Logout
+          </button>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 p-6">
@@ -485,8 +516,21 @@ export default function CreditorDashboard() {
       {activeTab === 'records' && (
         <div className="section p-6">
           <div className="panel bg-white rounded-lg shadow p-6">
-            <h3 className="font-bold text-lg mb-4">Submitted Loan Records</h3>
-            <p className="mb-4">Track status of all your submitted loan records</p>
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <h3 className="font-bold text-lg">Submitted Loan Records</h3>
+                <p className="text-gray-600">Track status of all your submitted loan records</p>
+              </div>
+              <button
+                onClick={() => {
+                  console.log('🔄 Refresh submitted records triggered');
+                  fetchLoans();
+                }}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition text-sm font-semibold flex items-center gap-2"
+              >
+                🔄 Refresh Records
+              </button>
+            </div>
             {submittedRecords.map(record => (
               <div key={record.loanId || record.transactionId} className="loan-item flex justify-between items-center border border-gray-200 rounded-lg p-4 mb-2" data-status={record.status}>
                 <div>

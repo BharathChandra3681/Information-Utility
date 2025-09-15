@@ -7,6 +7,14 @@ set -euo pipefail
 NETWORK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$NETWORK_DIR"
 
+# Force amd64 images on Apple Silicon if a service lacks arm64 images.
+# This is a workaround for running on M1/M2 Macs. For better performance,
+# use native arm64 Fabric images (e.g., v2.4+) in your docker-compose.yaml.
+if [[ "$(uname -m)" == "arm64" || "$(uname -m)" == "aarch64" ]]; then
+  export DOCKER_DEFAULT_PLATFORM=${DOCKER_DEFAULT_PLATFORM:-linux/amd64}
+  echo "Detected ARM64 architecture (Apple Silicon). Forcing DOCKER_DEFAULT_PLATFORM=$DOCKER_DEFAULT_PLATFORM"
+fi
+
 # Prefer Docker Compose v2
 if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
   COMPOSE_CMD=(docker compose)
@@ -29,6 +37,27 @@ printStatus() {
     echo "=============================================="
     echo "$1"
     echo "=============================================="
+}
+
+# Default component versions (can be overridden via environment or network/.env)
+FABRIC_PEER_VERSION=${FABRIC_PEER_VERSION:-2.5.12}
+FABRIC_ORDERER_VERSION=${FABRIC_ORDERER_VERSION:-2.5.12}
+FABRIC_CA_VERSION=${FABRIC_CA_VERSION:-1.5.12}
+COUCHDB_VERSION=${COUCHDB_VERSION:-3.3}
+# The fabric-tools image version should correspond to the peer/orderer version
+FABRIC_TOOLS_VERSION=${FABRIC_TOOLS_VERSION:-$FABRIC_PEER_VERSION}
+
+prePullImages() {
+    printStatus "PRE-PULLING DOCKER IMAGES SEQUENTIALLY"
+    echo "Pulling images sequentially for platform ${DOCKER_DEFAULT_PLATFORM:-linux/amd64} to avoid potential race conditions on Apple Silicon..."
+    
+    docker pull --platform "${DOCKER_DEFAULT_PLATFORM:-linux/amd64}" "hyperledger/fabric-ca:${FABRIC_CA_VERSION}"
+    docker pull --platform "${DOCKER_DEFAULT_PLATFORM:-linux/amd64}" "hyperledger/fabric-peer:${FABRIC_PEER_VERSION}"
+    docker pull --platform "${DOCKER_DEFAULT_PLATFORM:-linux/amd64}" "hyperledger/fabric-orderer:${FABRIC_ORDERER_VERSION}"
+    docker pull --platform "${DOCKER_DEFAULT_PLATFORM:-linux/amd64}" "hyperledger/fabric-tools:${FABRIC_TOOLS_VERSION}"
+    docker pull --platform "${DOCKER_DEFAULT_PLATFORM:-linux/amd64}" "couchdb:${COUCHDB_VERSION}"
+    
+    echo "All required images pulled successfully."
 }
 
 # Clean up function
@@ -123,11 +152,32 @@ generateChannelArtifacts() {
 startNetwork() {
     printStatus "STARTING DOCKER CONTAINERS"
     echo "Starting Docker containers..."
+
     "${COMPOSE_CMD[@]}" -f network/docker-compose.yaml up -d
     echo "Waiting for network to start..."
     sleep 5
     echo "Container status:"
     "${COMPOSE_CMD[@]}" -f network/docker-compose.yaml ps
+}
+
+waitForCouch() {
+  printStatus "WAITING FOR COUCHDB HEALTH"
+  local DBS=("couchdb.creditor.iu-network.com" "couchdb.debtor.iu-network.com" "couchdb.admin.iu-network.com")
+  for svc in "${DBS[@]}"; do
+    echo "Waiting for $svc ..."
+    for i in {1..30}; do
+      if docker inspect -f '{{.State.Health.Status}}' "$svc" 2>/dev/null | grep -q 'healthy'; then
+        echo "  $svc healthy"
+        break
+      fi
+      sleep 2
+      if [ "$i" -eq 30 ]; then
+        echo "Error: $svc not healthy"
+        docker logs "$svc" || true
+        exit 1
+      fi
+    done
+  done
 }
 
 # Create channels and join peers (orderer via osnadmin, peers via CLI)
@@ -257,11 +307,13 @@ main() {
         up)
             printStatus "STARTING FINANCIAL INFORMATION UTILITY NETWORK"
             cleanup
+            prePullImages
             generateCrypto
             generateChannelArtifacts
             installChaincodeDependendencies
             installAppDependencies
             startNetwork
+            waitForCouch
             createChannels
             deployChaincode
             startAPIServer

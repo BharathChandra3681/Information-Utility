@@ -1,0 +1,49 @@
+{
+    "name": "iu-network-debtor",
+    "version": "1.0.0",
+    "client": {
+        "organization": "Debtor",
+        "connection": {
+            "timeout": {
+                "peer": {
+                    "endorser": "300"
+                }
+            }
+        }
+    },
+    "organizations": {
+        "Debtor": {
+            "mspid": "DebtorMSP",
+            "peers": [
+                "peer0.debtor.iu-network.com"
+            ],
+            "certificateAuthorities": [
+                "ca.debtor.iu-network.com"
+            ]
+        }
+    },
+    "peers": {
+        "peer0.debtor.iu-network.com": {
+            "url": "grpcs://localhost:8051",
+            "tlsCACerts": {
+                "pem": "-----BEGIN CERTIFICATE-----\nMIICSTCCAfCgAwIBAgIRAMu3nA0IF0s2vXMmKMhPg/0wCgYIKoZIzj0EAwIwczEL\nMAkGA1UEBhMCVVMxEzARBgNVBAgTCkNhbGlmb3JuaWExFjAUBgNVBAcTDVNhbiBG\ncmFuY2lzY28xGTAXBgNVBAoTEG9yZzEuZXhhbXBsZS5jb20xHjAcBgNVBAMTFXRl\nc3RuZXQtb3JnMWNhLm9yZzEuZXhhbXBsZS5jb20wHhcNMjAwMTAxMDAwMDAwWhcN\nMzAwMTAxMDAwMDAwWjBzMQswCQYDVQQGEwJVUzETMBEGA1UECBMKQ2FsaWZvcm5p\nYTEWMBQGA1UEBxMNU2FuIEZyYW5jaXNjbzEZMBcGA1UEChMQb3JnMS5leGFtcGxl\nLmNvbTEeMBwGA1UEAxMVdGVzdG5ldC1vcmcxY2Eub3JnMS5leGFtcGxlLmNvbTBZ\nMBMGByqGSM49AgEGCCqGSM49AwEHA0IABNDs6OK4lsVrJv5Xa3g3EgJqeqV7xYyI\nKkX5OQoOs3rjyR4zMX0CJPbK3qdWtSd0Lp9AH1QaoVV7UBsC/2yM+1ujgZswgZkw\nDwYDVR0TAQH/BAUwAwEB/zAOBgNVHQ8BAf8EBAMCAaYwHQYDVR0lBBYwFAYIKwYB\nBQUHAwEGCCsGAQUFBwMCMB0GA1UdDgQWBBR5tWPGCLM2TNJk1y8kRocN8wj/FzAf\nBgNVHSMEGDAWgBR5tWPGCLM2TNJk1y8kRocN8wj/FzAKBggqhkjOPQQDAgNIADBF\nAiEA2zpJEPQyz6/lWj86p4qF5JlUeEHBVTzJwPukE6M5H90CIQDYoD+Lrbj6VKlP\nOT7DVR4LqFPaAWIa2DcfuI/nk0moIg==\n-----END CERTIFICATE-----"
+            },
+            "grpcOptions": {
+                "ssl-target-name-override": "peer0.debtor.iu-network.com",
+                "hostnameOverride": "peer0.debtor.iu-network.com"
+            }
+        }
+    },
+    "certificateAuthorities": {
+        "ca.debtor.iu-network.com": {
+            "url": "https://localhost:8054",
+            "caName": "ca-debtor",
+            "tlsCACerts": {
+                "pem": ["-----BEGIN CERTIFICATE-----\nMIICSTCCAfCgAwIBAgIRAMu3nA0IF0s2vXMmKMhPg/0wCgYIKoZIzj0EAwIwczEL\nMAkGA1UEBhMCVVMxEzARBgNVBAgTCkNhbGlmb3JuaWExFjAUBgNVBAcTDVNhbiBG\ncmFuY2lzY28xGTAXBgNVBAoTEG9yZzEuZXhhbXBsZS5jb20xHjAcBgNVBAMTFXRl\nc3RuZXQtb3JnMWNhLm9yZzEuZXhhbXBsZS5jb20wHhcNMjAwMTAxMDAwMDAwWhcN\nMzAwMTAxMDAwMDAwWjBzMQswCQYDVQQGEwJVUzETMBEGA1UECBMKQ2FsaWZvcm5p\nYTEWMBQGA1UEBxMNU2FuIEZyYW5jaXNjbzEZMBcGA1UEChMQb3JnMS5leGFtcGxl\nLmNvbTEeMBwGA1UEAxMVdGVzdG5ldC1vcmcxY2Eub3JnMS5leGFtcGxlLmNvbTBZ\nMBMGByqGSM49AgEGCCqGSM49AwEHA0IABNDs6OK4lsVrJv5Xa3g3EgJqeqV7xYyI\nKkX5OQoOs3rjyR4zMX0CJPbK3qdWtSd0Lp9AH1QaoVV7UBsC/2yM+1ujgZswgZkw\nDwYDVR0TAQH/BAUwAwEB/zAOBgNVHQ8BAf8EBAMCAaYwHQYDVR0lBBYwFAYIKwYB\nBQUHAwEGCCsGAQUFBwMCMB0GA1UdDgQWBBR5tWPGCLM2TNJk1y8kRocN8wj/FzAf\nBgNVHSMEGDAWgBR5tWPGCLM2TNJk1y8kRocN8wj/FzAKBggqhkjOPQQDAgNIADBF\nAiEA2zpJEPQyz6/lWj86p4qF5JlUeEHBVTzJwPukE6M5H90CIQDYoD+Lrbj6VKlP\nOT7DVR4LqFPaAWIa2DcfuI/nk0moIg==\n-----END CERTIFICATE-----"]
+            },
+            "httpOptions": {
+                "verify": false
+            }
+        }
+    }
+}
