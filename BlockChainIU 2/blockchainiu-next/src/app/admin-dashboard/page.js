@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -62,12 +62,12 @@ export default function AdminDashboard() {
   };
 
   // Load loan records from backend
-  const loadLoanRecords = async () => {
+  const loadLoanRecords = useCallback(async () => {
     try {
       setLoanLoading(true);
       console.log('🔄 Loading loans for admin dashboard...');
-      // Use temporary backend while Fabric issues are resolved
-      const res = await fetch('http://localhost:4002/api/loans?org=admin');
+      // Using real Fabric backend
+      const res = await fetch('http://localhost:4001/api/loans?org=admin');
       const data = await res.json();
       console.log('📋 Received data:', data);
       const filteredData = Array.isArray(data) ? data.filter(r => r.docType === 'SimpleLoan') : [];
@@ -80,13 +80,13 @@ export default function AdminDashboard() {
     } finally {
       setLoanLoading(false);
     }
-  };
+  }, []);
 
   const adminApprove = async (id) => {
     try {
       console.log('✅ Admin approving loan:', id);
-      // Use temporary backend while Fabric issues are resolved
-      const res = await fetch(`http://localhost:4002/api/loans/${encodeURIComponent(id)}/admin/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org: 'admin' }) });
+      // Using real Fabric backend
+      const res = await fetch(`http://localhost:4001/api/loans/${encodeURIComponent(id)}/admin/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org: 'admin' }) });
       if (!res.ok) throw new Error((await res.json()).error || 'Approve failed');
       console.log('✅ Loan approved, reloading data...');
       await loadLoanRecords();
@@ -106,8 +106,8 @@ export default function AdminDashboard() {
   const adminReject = async (id) => {
     try {
       const reason = prompt('Reason for rejection?') || '';
-      // Use temporary backend while Fabric issues are resolved
-      const res = await fetch(`http://localhost:4002/api/loans/${encodeURIComponent(id)}/admin/reject`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org: 'admin', reason }) });
+      // Using real Fabric backend
+      const res = await fetch(`http://localhost:4001/api/loans/${encodeURIComponent(id)}/admin/reject`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org: 'admin', reason }) });
       if (!res.ok) throw new Error((await res.json()).error || 'Reject failed');
       await loadLoanRecords();
       setRefreshKey(prev => prev + 1); // Force re-render

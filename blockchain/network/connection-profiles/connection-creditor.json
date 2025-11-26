@@ -1,0 +1,77 @@
+{
+  "name": "iu-network-creditor",
+  "version": "1.0.0",
+  "client": {
+    "organization": "Creditor",
+    "connection": {
+      "timeout": {
+        "peer": {
+          "endorser": "300"
+        },
+        "orderer": "300"
+      }
+    }
+  },
+  "channels": {
+    "financial-operations-channel": {
+      "orderers": [
+        "orderer.iu.com"
+      ],
+      "peers": {
+        "peer0.creditor.iu.com": {
+          "endorsingPeer": true,
+          "chaincodeQuery": true,
+          "ledgerQuery": true,
+          "eventSource": true
+        }
+      }
+    }
+  },
+  "organizations": {
+    "Creditor": {
+      "mspid": "CreditorMSP",
+      "peers": [
+        "peer0.creditor.iu.com"
+      ],
+      "certificateAuthorities": [
+        "ca.creditor.iu.com"
+      ]
+    }
+  },
+  "orderers": {
+    "orderer.iu.com": {
+      "url": "grpcs://localhost:7050",
+      "tlsCACerts": {
+        "path": "../crypto-config/ordererOrganizations/iu.com/orderers/orderer.iu.com/msp/tlscacerts/tlsca.iu.com-cert.pem"
+      },
+      "grpcOptions": {
+        "ssl-target-name-override": "orderer.iu.com",
+        "hostnameOverride": "orderer.iu.com"
+      }
+    }
+  },
+  "peers": {
+    "peer0.creditor.iu.com": {
+      "url": "grpcs://localhost:8051",
+      "tlsCACerts": {
+        "path": "../crypto-config/peerOrganizations/creditor.iu.com/peers/peer0.creditor.iu.com/tls/ca.crt"
+      },
+      "grpcOptions": {
+        "ssl-target-name-override": "peer0.creditor.iu.com",
+        "hostnameOverride": "peer0.creditor.iu.com"
+      }
+    }
+  },
+  "certificateAuthorities": {
+    "ca.creditor.iu.com": {
+      "url": "https://localhost:8054",
+      "caName": "ca-creditor",
+      "tlsCACerts": {
+        "path": "../crypto-config/peerOrganizations/creditor.iu.com/ca/ca.creditor.iu.com-cert.pem"
+      },
+      "httpOptions": {
+        "verify": false
+      }
+    }
+  }
+}

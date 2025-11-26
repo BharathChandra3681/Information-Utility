@@ -1,0 +1,77 @@
+{
+  "name": "iu-network-debtor",
+  "version": "1.0.0",
+  "client": {
+    "organization": "Debtor",
+    "connection": {
+      "timeout": {
+        "peer": {
+          "endorser": "300"
+        },
+        "orderer": "300"
+      }
+    }
+  },
+  "channels": {
+    "financial-operations-channel": {
+      "orderers": [
+        "orderer.iu.com"
+      ],
+      "peers": {
+        "peer0.debtor.iu.com": {
+          "endorsingPeer": true,
+          "chaincodeQuery": true,
+          "ledgerQuery": true,
+          "eventSource": true
+        }
+      }
+    }
+  },
+  "organizations": {
+    "Debtor": {
+      "mspid": "DebtorMSP",
+      "peers": [
+        "peer0.debtor.iu.com"
+      ],
+      "certificateAuthorities": [
+        "ca.debtor.iu.com"
+      ]
+    }
+  },
+  "orderers": {
+    "orderer.iu.com": {
+      "url": "grpcs://localhost:7050",
+      "tlsCACerts": {
+        "path": "../crypto-config/ordererOrganizations/iu.com/orderers/orderer.iu.com/msp/tlscacerts/tlsca.iu.com-cert.pem"
+      },
+      "grpcOptions": {
+        "ssl-target-name-override": "orderer.iu.com",
+        "hostnameOverride": "orderer.iu.com"
+      }
+    }
+  },
+  "peers": {
+    "peer0.debtor.iu.com": {
+      "url": "grpcs://localhost:9051",
+      "tlsCACerts": {
+        "path": "../crypto-config/peerOrganizations/debtor.iu.com/peers/peer0.debtor.iu.com/tls/ca.crt"
+      },
+      "grpcOptions": {
+        "ssl-target-name-override": "peer0.debtor.iu.com",
+        "hostnameOverride": "peer0.debtor.iu.com"
+      }
+    }
+  },
+  "certificateAuthorities": {
+    "ca.debtor.iu.com": {
+      "url": "https://localhost:9054",
+      "caName": "ca-debtor",
+      "tlsCACerts": {
+        "path": "../crypto-config/peerOrganizations/debtor.iu.com/ca/ca.debtor.iu.com-cert.pem"
+      },
+      "httpOptions": {
+        "verify": false
+      }
+    }
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "name": "iu-network-government",
+  "version": "1.0.0",
+  "client": {
+    "organization": "Government",
+    "connection": {
+      "timeout": {
+        "peer": {
+          "endorser": "300"
+        },
+        "orderer": "300"
+      }
+    }
+  },
+  "channels": {
+    "governance-channel": {
+      "orderers": [
+        "orderer.iu.com"
+      ],
+      "peers": {
+        "peer0.government.iu.com": {
+          "endorsingPeer": true,
+          "chaincodeQuery": true,
+          "ledgerQuery": true,
+          "eventSource": true
+        }
+      }
+    },
+    "financial-operations-channel": {
+      "orderers": [
+        "orderer.iu.com"
+      ],
+      "peers": {
+        "peer0.government.iu.com": {
+          "endorsingPeer": true,
+          "chaincodeQuery": true,
+          "ledgerQuery": true,
+          "eventSource": true
+        }
+      }
+    }
+  },
+  "organizations": {
+    "Government": {
+      "mspid": "GovernmentMSP",
+      "peers": [
+        "peer0.government.iu.com"
+      ],
+      "certificateAuthorities": [
+        "ca.government.iu.com"
+      ]
+    }
+  },
+  "orderers": {
+    "orderer.iu.com": {
+      "url": "grpcs://localhost:7050",
+      "tlsCACerts": {
+        "path": "../crypto-config/ordererOrganizations/iu.com/orderers/orderer.iu.com/msp/tlscacerts/tlsca.iu.com-cert.pem"
+      },
+      "grpcOptions": {
+        "ssl-target-name-override": "orderer.iu.com",
+        "hostnameOverride": "orderer.iu.com"
+      }
+    }
+  },
+  "peers": {
+    "peer0.government.iu.com": {
+      "url": "grpcs://localhost:7051",
+      "tlsCACerts": {
+        "path": "../crypto-config/peerOrganizations/government.iu.com/peers/peer0.government.iu.com/tls/ca.crt"
+      },
+      "grpcOptions": {
+        "ssl-target-name-override": "peer0.government.iu.com",
+        "hostnameOverride": "peer0.government.iu.com"
+      }
+    }
+  },
+  "certificateAuthorities": {
+    "ca.government.iu.com": {
+      "url": "https://localhost:7054",
+      "caName": "ca-government",
+      "tlsCACerts": {
+        "path": "../crypto-config/peerOrganizations/government.iu.com/ca/ca.government.iu.com-cert.pem"
+      },
+      "httpOptions": {
+        "verify": false
+      }
+    }
+  }
+}

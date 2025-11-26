@@ -1,0 +1,39 @@
+# Crypto Configuration for Information Utility Network
+# Defines organizations and their certificate generation requirements
+
+# OrdererOrgs defines the organizations operating the orderer nodes
+OrdererOrgs:
+  - Name: Orderer
+    Domain: iu-network.com
+    EnableNodeOUs: true
+    Specs:
+      - Hostname: orderer
+    
+# PeerOrgs defines the organizations operating peer nodes
+PeerOrgs:
+  # Government Organization (Admin + Regulator)
+  - Name: Government
+    Domain: government.iu-network.com
+    EnableNodeOUs: true
+    Template:
+      Count: 1  # 1 peer: peer0.government.iu-network.com
+    Users:
+      Count: 2  # admin and regulator users
+    
+  # Creditor Organization (Lenders)
+  - Name: Creditor
+    Domain: creditor.iu-network.com
+    EnableNodeOUs: true
+    Template:
+      Count: 1  # 1 peer: peer0.creditor.iu-network.com
+    Users:
+      Count: 2  # admin and lender users
+    
+  # Debtor Organization (Borrowers)
+  - Name: Debtor
+    Domain: debtor.iu-network.com
+    EnableNodeOUs: true
+    Template:
+      Count: 1  # 1 peer: peer0.debtor.iu-network.com
+    Users:
+      Count: 2  # admin and borrower users
