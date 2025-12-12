@@ -16,7 +16,10 @@ uploads/
 # Build outputs
 dist/
 build/
+.next/
 *.log
+backend/logs/
+blockchain/network/*.log
 
 # IDE files
 .vscode/

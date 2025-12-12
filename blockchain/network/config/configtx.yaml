@@ -1,0 +1,209 @@
+# Configuration for Information Utility Blockchain Network
+# This file defines the channel and orderer configurations
+
+################################################################################
+#   ORGANIZATIONS
+################################################################################
+Organizations:
+  # Orderer Organization
+  - &Orderer
+      Name: Orderer
+      ID: OrdererMSP
+      MSPDir: ../organizations/ordererOrganizations/iu-network.com/msp
+      Policies:
+        Readers:
+          Type: Signature
+          Rule: "OR('OrdererMSP.member')"
+        Writers:
+          Type: Signature
+          Rule: "OR('OrdererMSP.member')"
+        Admins:
+          Type: Signature
+          Rule: "OR('OrdererMSP.admin')"
+      OrdererEndpoints:
+        - orderer.iu-network.com:7050
+
+  # Government Organization
+  - &Government
+      Name: Government
+      ID: GovernmentMSP
+      MSPDir: ../organizations/peerOrganizations/government.iu-network.com/msp
+      Policies:
+        Readers:
+          Type: Signature
+          Rule: "OR('GovernmentMSP.admin', 'GovernmentMSP.peer', 'GovernmentMSP.client')"
+        Writers:
+          Type: Signature
+          Rule: "OR('GovernmentMSP.admin', 'GovernmentMSP.client')"
+        Admins:
+          Type: Signature
+          Rule: "OR('GovernmentMSP.admin')"
+        Endorsement:
+          Type: Signature
+          Rule: "OR('GovernmentMSP.peer')"
+      AnchorPeers:
+        - Host: peer0.government.iu-network.com
+          Port: 7051
+
+  # Creditor Organization
+  - &Creditor
+      Name: Creditor
+      ID: CreditorMSP
+      MSPDir: ../organizations/peerOrganizations/creditor.iu-network.com/msp
+      Policies:
+        Readers:
+          Type: Signature
+          Rule: "OR('CreditorMSP.admin', 'CreditorMSP.peer', 'CreditorMSP.client')"
+        Writers:
+          Type: Signature
+          Rule: "OR('CreditorMSP.admin', 'CreditorMSP.client')"
+        Admins:
+          Type: Signature
+          Rule: "OR('CreditorMSP.admin')"
+        Endorsement:
+          Type: Signature
+          Rule: "OR('CreditorMSP.peer')"
+      AnchorPeers:
+        - Host: peer0.creditor.iu-network.com
+          Port: 9051
+
+  # Debtor Organization
+  - &Debtor
+      Name: Debtor
+      ID: DebtorMSP
+      MSPDir: ../organizations/peerOrganizations/debtor.iu-network.com/msp
+      Policies:
+        Readers:
+          Type: Signature
+          Rule: "OR('DebtorMSP.admin', 'DebtorMSP.peer', 'DebtorMSP.client')"
+        Writers:
+          Type: Signature
+          Rule: "OR('DebtorMSP.admin', 'DebtorMSP.client')"
+        Admins:
+          Type: Signature
+          Rule: "OR('DebtorMSP.admin')"
+        Endorsement:
+          Type: Signature
+          Rule: "OR('DebtorMSP.peer')"
+      AnchorPeers:
+        - Host: peer0.debtor.iu-network.com
+          Port: 11051
+
+################################################################################
+#   CAPABILITIES
+################################################################################
+Capabilities:
+  Channel: &ChannelCapabilities
+    V2_0: true
+  Orderer: &OrdererCapabilities
+    V2_0: true
+  Application: &ApplicationCapabilities
+    V2_0: true
+
+################################################################################
+#   APPLICATION
+################################################################################
+Application: &ApplicationDefaults
+  Organizations:
+  Policies:
+    Readers:
+      Type: ImplicitMeta
+      Rule: "ANY Readers"
+    Writers:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"
+    Admins:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Admins"
+    LifecycleEndorsement:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Endorsement"
+    Endorsement:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Endorsement"
+  Capabilities:
+    <<: *ApplicationCapabilities
+
+################################################################################
+#   ORDERER
+################################################################################
+Orderer: &OrdererDefaults
+  OrdererType: solo
+  Addresses:
+    - orderer.iu-network.com:7050
+  BatchTimeout: 2s
+  BatchSize:
+    MaxMessageCount: 10
+    AbsoluteMaxBytes: 99 MB
+    PreferredMaxBytes: 512 KB
+  Organizations:
+  Policies:
+    Readers:
+      Type: ImplicitMeta
+      Rule: "ANY Readers"
+    Writers:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"
+    Admins:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Admins"
+    BlockValidation:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"
+  Capabilities:
+    <<: *OrdererCapabilities
+
+################################################################################
+#   CHANNEL
+################################################################################
+Channel: &ChannelDefaults
+  Policies:
+    Readers:
+      Type: ImplicitMeta
+      Rule: "ANY Readers"
+    Writers:
+      Type: ImplicitMeta
+      Rule: "ANY Writers"
+    Admins:
+      Type: ImplicitMeta
+      Rule: "MAJORITY Admins"
+  Capabilities:
+    <<: *ChannelCapabilities
+
+################################################################################
+#   PROFILES
+################################################################################
+Profiles:
+  # Profile for orderer genesis block
+  IUOrdererGenesis:
+    <<: *ChannelDefaults
+    Orderer:
+      <<: *OrdererDefaults
+      Organizations:
+        - *Orderer
+    Consortiums:
+      IUConsortium:
+        Organizations:
+          - *Government
+          - *Creditor
+          - *Debtor
+
+  # Profile for governance channel (Government only)
+  GovernanceChannel:
+    Consortium: IUConsortium
+    <<: *ChannelDefaults
+    Application:
+      <<: *ApplicationDefaults
+      Organizations:
+        - *Government
+
+  # Profile for financial operations channel (All organizations)
+  FinancialOperationsChannel:
+    Consortium: IUConsortium
+    <<: *ChannelDefaults
+    Application:
+      <<: *ApplicationDefaults
+      Organizations:
+        - *Government
+        - *Creditor
+        - *Debtor

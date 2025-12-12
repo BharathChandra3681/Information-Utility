@@ -1,11 +1,5 @@
 version: '3.7'
 
-volumes:
-  orderer.iu-network.com:
-  peer0.government.iu-network.com:
-  peer0.creditor.iu-network.com:
-  peer0.debtor.iu-network.com:
-
 networks:
   iu-network:
     name: iu-network

@@ -30,7 +30,7 @@ echo ""
 # ========================================================================
 echo -e "${YELLOW}[TEST 1/10]${NC} Checking network components..."
 
-EXPECTED_CONTAINERS=("orderer.iu.com" "peer0.government.iu.com" "peer0.creditor.iu.com" "peer0.debtor.iu.com" "couchdb.government" "couchdb.creditor" "couchdb.debtor" "cli")
+EXPECTED_CONTAINERS=("orderer.iu-network.com" "peer0.government.iu-network.com" "peer0.creditor.iu-network.com" "peer0.debtor.iu-network.com" "couchdb0" "couchdb1" "couchdb2" "cli")
 FAILED_CONTAINERS=()
 
 for container in "${EXPECTED_CONTAINERS[@]}"; do
