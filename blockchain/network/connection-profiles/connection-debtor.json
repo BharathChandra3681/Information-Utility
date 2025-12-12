@@ -15,10 +15,10 @@
   "channels": {
     "financial-operations-channel": {
       "orderers": [
-        "orderer.iu.com"
+        "orderer.iu-network.com"
       ],
       "peers": {
-        "peer0.debtor.iu.com": {
+        "peer0.debtor.iu-network.com": {
           "endorsingPeer": true,
           "chaincodeQuery": true,
           "ledgerQuery": true,
@@ -31,43 +31,43 @@
     "Debtor": {
       "mspid": "DebtorMSP",
       "peers": [
-        "peer0.debtor.iu.com"
+        "peer0.debtor.iu-network.com"
       ],
       "certificateAuthorities": [
-        "ca.debtor.iu.com"
+        "ca.debtor.iu-network.com"
       ]
     }
   },
   "orderers": {
-    "orderer.iu.com": {
+    "orderer.iu-network.com": {
       "url": "grpcs://localhost:7050",
       "tlsCACerts": {
-        "path": "../crypto-config/ordererOrganizations/iu.com/orderers/orderer.iu.com/msp/tlscacerts/tlsca.iu.com-cert.pem"
+        "path": "../organizations/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/msp/tlscacerts/tlsca.iu-network.com-cert.pem"
       },
       "grpcOptions": {
-        "ssl-target-name-override": "orderer.iu.com",
-        "hostnameOverride": "orderer.iu.com"
+        "ssl-target-name-override": "orderer.iu-network.com",
+        "hostnameOverride": "orderer.iu-network.com"
       }
     }
   },
   "peers": {
-    "peer0.debtor.iu.com": {
+    "peer0.debtor.iu-network.com": {
       "url": "grpcs://localhost:9051",
       "tlsCACerts": {
-        "path": "../crypto-config/peerOrganizations/debtor.iu.com/peers/peer0.debtor.iu.com/tls/ca.crt"
+        "path": "../organizations/peerOrganizations/debtor.iu-network.com/peers/peer0.debtor.iu-network.com/tls/ca.crt"
       },
       "grpcOptions": {
-        "ssl-target-name-override": "peer0.debtor.iu.com",
-        "hostnameOverride": "peer0.debtor.iu.com"
+        "ssl-target-name-override": "peer0.debtor.iu-network.com",
+        "hostnameOverride": "peer0.debtor.iu-network.com"
       }
     }
   },
   "certificateAuthorities": {
-    "ca.debtor.iu.com": {
+    "ca.debtor.iu-network.com": {
       "url": "https://localhost:9054",
       "caName": "ca-debtor",
       "tlsCACerts": {
-        "path": "../crypto-config/peerOrganizations/debtor.iu.com/ca/ca.debtor.iu.com-cert.pem"
+        "path": "../organizations/peerOrganizations/debtor.iu-network.com/ca/ca.debtor.iu-network.com-cert.pem"
       },
       "httpOptions": {
         "verify": false

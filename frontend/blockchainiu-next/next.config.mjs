@@ -1,8 +1,7 @@
 /** @type {import('next').NextConfig} */
-// Default backend origin points to Fabric app-iu-updated on 3001
-// Avoids conflict with Next dev server default on 3000
-const backendOrigin = process.env.NEXT_PUBLIC_BACKEND_ORIGIN || 'http://localhost:3001';
-const uploadBackendOrigin = process.env.NEXT_PUBLIC_UPLOAD_BACKEND_ORIGIN || 'http://localhost:4001';
+// Backend runs on port 4000 (IU Unified Backend)
+const backendOrigin = process.env.NEXT_PUBLIC_BACKEND_ORIGIN || 'http://localhost:4000';
+const uploadBackendOrigin = process.env.NEXT_PUBLIC_UPLOAD_BACKEND_ORIGIN || 'http://localhost:4000';
 
 const nextConfig = {
   async rewrites() {

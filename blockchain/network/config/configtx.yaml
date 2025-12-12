@@ -65,7 +65,7 @@ Organizations:
           Rule: "OR('CreditorMSP.peer')"
       AnchorPeers:
         - Host: peer0.creditor.iu-network.com
-          Port: 9051
+          Port: 8051
 
   # Debtor Organization
   - &Debtor
@@ -87,7 +87,7 @@ Organizations:
           Rule: "OR('DebtorMSP.peer')"
       AnchorPeers:
         - Host: peer0.debtor.iu-network.com
-          Port: 11051
+          Port: 9051
 
 ################################################################################
 #   CAPABILITIES

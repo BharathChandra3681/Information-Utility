@@ -15,10 +15,10 @@
   "channels": {
     "governance-channel": {
       "orderers": [
-        "orderer.iu.com"
+        "orderer.iu-network.com"
       ],
       "peers": {
-        "peer0.government.iu.com": {
+        "peer0.government.iu-network.com": {
           "endorsingPeer": true,
           "chaincodeQuery": true,
           "ledgerQuery": true,
@@ -28,10 +28,10 @@
     },
     "financial-operations-channel": {
       "orderers": [
-        "orderer.iu.com"
+        "orderer.iu-network.com"
       ],
       "peers": {
-        "peer0.government.iu.com": {
+        "peer0.government.iu-network.com": {
           "endorsingPeer": true,
           "chaincodeQuery": true,
           "ledgerQuery": true,
@@ -44,43 +44,43 @@
     "Government": {
       "mspid": "GovernmentMSP",
       "peers": [
-        "peer0.government.iu.com"
+        "peer0.government.iu-network.com"
       ],
       "certificateAuthorities": [
-        "ca.government.iu.com"
+        "ca.government.iu-network.com"
       ]
     }
   },
   "orderers": {
-    "orderer.iu.com": {
+    "orderer.iu-network.com": {
       "url": "grpcs://localhost:7050",
       "tlsCACerts": {
-        "path": "../crypto-config/ordererOrganizations/iu.com/orderers/orderer.iu.com/msp/tlscacerts/tlsca.iu.com-cert.pem"
+        "path": "../organizations/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/msp/tlscacerts/tlsca.iu-network.com-cert.pem"
       },
       "grpcOptions": {
-        "ssl-target-name-override": "orderer.iu.com",
-        "hostnameOverride": "orderer.iu.com"
+        "ssl-target-name-override": "orderer.iu-network.com",
+        "hostnameOverride": "orderer.iu-network.com"
       }
     }
   },
   "peers": {
-    "peer0.government.iu.com": {
+    "peer0.government.iu-network.com": {
       "url": "grpcs://localhost:7051",
       "tlsCACerts": {
-        "path": "../crypto-config/peerOrganizations/government.iu.com/peers/peer0.government.iu.com/tls/ca.crt"
+        "path": "../organizations/peerOrganizations/government.iu-network.com/peers/peer0.government.iu-network.com/tls/ca.crt"
       },
       "grpcOptions": {
-        "ssl-target-name-override": "peer0.government.iu.com",
-        "hostnameOverride": "peer0.government.iu.com"
+        "ssl-target-name-override": "peer0.government.iu-network.com",
+        "hostnameOverride": "peer0.government.iu-network.com"
       }
     }
   },
   "certificateAuthorities": {
-    "ca.government.iu.com": {
+    "ca.government.iu-network.com": {
       "url": "https://localhost:7054",
       "caName": "ca-government",
       "tlsCACerts": {
-        "path": "../crypto-config/peerOrganizations/government.iu.com/ca/ca.government.iu.com-cert.pem"
+        "path": "../organizations/peerOrganizations/government.iu-network.com/ca/ca.government.iu-network.com-cert.pem"
       },
       "httpOptions": {
         "verify": false

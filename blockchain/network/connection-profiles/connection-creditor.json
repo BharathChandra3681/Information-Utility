@@ -15,10 +15,10 @@
   "channels": {
     "financial-operations-channel": {
       "orderers": [
-        "orderer.iu.com"
+        "orderer.iu-network.com"
       ],
       "peers": {
-        "peer0.creditor.iu.com": {
+        "peer0.creditor.iu-network.com": {
           "endorsingPeer": true,
           "chaincodeQuery": true,
           "ledgerQuery": true,
@@ -31,43 +31,43 @@
     "Creditor": {
       "mspid": "CreditorMSP",
       "peers": [
-        "peer0.creditor.iu.com"
+        "peer0.creditor.iu-network.com"
       ],
       "certificateAuthorities": [
-        "ca.creditor.iu.com"
+        "ca.creditor.iu-network.com"
       ]
     }
   },
   "orderers": {
-    "orderer.iu.com": {
+    "orderer.iu-network.com": {
       "url": "grpcs://localhost:7050",
       "tlsCACerts": {
-        "path": "../crypto-config/ordererOrganizations/iu.com/orderers/orderer.iu.com/msp/tlscacerts/tlsca.iu.com-cert.pem"
+        "path": "../organizations/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/msp/tlscacerts/tlsca.iu-network.com-cert.pem"
       },
       "grpcOptions": {
-        "ssl-target-name-override": "orderer.iu.com",
-        "hostnameOverride": "orderer.iu.com"
+        "ssl-target-name-override": "orderer.iu-network.com",
+        "hostnameOverride": "orderer.iu-network.com"
       }
     }
   },
   "peers": {
-    "peer0.creditor.iu.com": {
+    "peer0.creditor.iu-network.com": {
       "url": "grpcs://localhost:8051",
       "tlsCACerts": {
-        "path": "../crypto-config/peerOrganizations/creditor.iu.com/peers/peer0.creditor.iu.com/tls/ca.crt"
+        "path": "../organizations/peerOrganizations/creditor.iu-network.com/peers/peer0.creditor.iu-network.com/tls/ca.crt"
       },
       "grpcOptions": {
-        "ssl-target-name-override": "peer0.creditor.iu.com",
-        "hostnameOverride": "peer0.creditor.iu.com"
+        "ssl-target-name-override": "peer0.creditor.iu-network.com",
+        "hostnameOverride": "peer0.creditor.iu-network.com"
       }
     }
   },
   "certificateAuthorities": {
-    "ca.creditor.iu.com": {
+    "ca.creditor.iu-network.com": {
       "url": "https://localhost:8054",
       "caName": "ca-creditor",
       "tlsCACerts": {
-        "path": "../crypto-config/peerOrganizations/creditor.iu.com/ca/ca.creditor.iu.com-cert.pem"
+        "path": "../organizations/peerOrganizations/creditor.iu-network.com/ca/ca.creditor.iu-network.com-cert.pem"
       },
       "httpOptions": {
         "verify": false

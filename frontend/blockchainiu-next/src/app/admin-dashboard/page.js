@@ -67,7 +67,7 @@ export default function AdminDashboard() {
       setLoanLoading(true);
       console.log('🔄 Loading loans for admin dashboard...');
       // Using real Fabric backend
-      const res = await fetch('http://localhost:4001/api/loans?org=admin');
+      const res = await fetch('/api/loans?org=admin');
       const data = await res.json();
       console.log('📋 Received data:', data);
       const filteredData = Array.isArray(data) ? data.filter(r => r.docType === 'SimpleLoan') : [];
@@ -86,7 +86,7 @@ export default function AdminDashboard() {
     try {
       console.log('✅ Admin approving loan:', id);
       // Using real Fabric backend
-      const res = await fetch(`http://localhost:4001/api/loans/${encodeURIComponent(id)}/admin/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org: 'admin' }) });
+      const res = await fetch(`/api/loans/${encodeURIComponent(id)}/admin/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org: 'admin' }) });
       if (!res.ok) throw new Error((await res.json()).error || 'Approve failed');
       console.log('✅ Loan approved, reloading data...');
       await loadLoanRecords();
@@ -107,7 +107,7 @@ export default function AdminDashboard() {
     try {
       const reason = prompt('Reason for rejection?') || '';
       // Using real Fabric backend
-      const res = await fetch(`http://localhost:4001/api/loans/${encodeURIComponent(id)}/admin/reject`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org: 'admin', reason }) });
+      const res = await fetch(`/api/loans/${encodeURIComponent(id)}/admin/reject`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org: 'admin', reason }) });
       if (!res.ok) throw new Error((await res.json()).error || 'Reject failed');
       await loadLoanRecords();
       setRefreshKey(prev => prev + 1); // Force re-render

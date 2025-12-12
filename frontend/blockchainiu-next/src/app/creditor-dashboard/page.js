@@ -56,7 +56,7 @@ export default function CreditorDashboard() {
     try {
       console.log('🔄 Fetching loans for creditor dashboard...');
       // Use temporary backend while Fabric issues are resolved
-      const res = await fetch('http://localhost:4002/api/loans?org=creditor');
+      const res = await fetch('/api/loans?org=creditor');
       const data = await res.json();
       const list = Array.isArray(data) ? data : [];
       setSubmittedRecords(list.filter(r => r.docType === 'SimpleLoan'));
@@ -188,7 +188,7 @@ export default function CreditorDashboard() {
 
     try {
       // Use temporary backend while Fabric issues are resolved
-      const res = await fetch('http://localhost:4002/api/loans', {
+      const res = await fetch('/api/loans', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ loanId, borrowerName: String(borrowerName).trim(), loanAmount: String(loanAmount).trim(), loanStartDate: startISO, maturityDate: maturityISO || '', org: 'creditor' })
@@ -222,16 +222,16 @@ export default function CreditorDashboard() {
         alert('Please choose a document file');
         return;
       }
+      if (!loanIdForUpload || !loanIdForUpload.trim()) {
+        alert('Please provide a Loan ID');
+        return;
+      }
       setIsUploading(true);
       setUploadResponse(null);
-      const loggedInUser = JSON.parse(localStorage.getItem('loggedInUser'));
-      const owner = loggedInUser?.email || 'unknown-owner';
       const form = new FormData();
-      form.append('file', selectedFile);
-      form.append('owner', owner);
-      if (loanIdForUpload) form.append('loanId', loanIdForUpload);
+      form.append('documents', selectedFile);
 
-      const res = await fetch('/api/documents/upload', {
+      const res = await fetch(`/api/loans/${loanIdForUpload}/documents?org=creditor`, {
         method: 'POST',
         body: form,
       });
@@ -254,12 +254,30 @@ export default function CreditorDashboard() {
   const loadMyDocs = async (email) => {
     try {
       setLoadingDocs(true);
-      const loggedInUser = JSON.parse(localStorage.getItem('loggedInUser'));
-      const owner = email || loggedInUser?.email;
-      if (!owner) return;
-      const res = await fetch(`/api/documents?owner=${encodeURIComponent(owner)}`);
-      const data = await res.json();
-      setMyDocs(Array.isArray(data) ? data : []);
+      // Fetch documents for all loans submitted by creditor
+      const allDocs = [];
+      for (const loan of submittedRecords) {
+        try {
+          const res = await fetch(`/api/loans/${loan.loanId || loan.transactionId}/documents?org=creditor`);
+          if (res.ok) {
+            const data = await res.json();
+            const docs = data.documents || [];
+            if (Array.isArray(docs)) {
+              allDocs.push(...docs.map(d => ({
+                id: d.documentId,
+                filename: d.fileName,
+                loan_id: loan.loanId || loan.transactionId,
+                size_bytes: d.fileSize,
+                verified: d.status === 'verified' || false,
+                uploadedAt: d.uploadedAt
+              })));
+            }
+          }
+        } catch (docErr) {
+          console.error(`Error fetching documents for loan ${loan.loanId}:`, docErr);
+        }
+      }
+      setMyDocs(allDocs);
     } catch (_) {
       setMyDocs([]);
     } finally {
@@ -485,17 +503,18 @@ export default function CreditorDashboard() {
             <p className="mb-4">Upload loan-related documents for admin verification. Hash will be anchored on-chain after approval.</p>
             <form onSubmit={handleDocumentUpload} className="space-y-4" noValidate>
               <div>
-                <label className="block mb-1">Loan ID (optional)</label>
+                <label className="block mb-1">Loan ID *</label>
                 <input
                   type="text"
                   value={loanIdForUpload}
                   onChange={(e) => setLoanIdForUpload(e.target.value)}
                   placeholder="e.g., LOAN001"
                   className="w-full p-3 border rounded-lg"
+                  required
                 />
               </div>
               <div>
-                <label className="block mb-1">Select Document (optional)</label>
+                <label className="block mb-1">Select Document *</label>
                 <input
                   type="file"
                   accept="application/pdf,image/*"
@@ -592,7 +611,7 @@ export default function CreditorDashboard() {
                       </td>
                       <td className="p-2">
                         <a
-                          href={`/api/documents/${encodeURIComponent(d.id)}/download`}
+                          href={`/api/loans/${encodeURIComponent(d.loan_id)}/documents/${encodeURIComponent(d.id)}?org=creditor`}
                           className="bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700"
                         >
                           Download

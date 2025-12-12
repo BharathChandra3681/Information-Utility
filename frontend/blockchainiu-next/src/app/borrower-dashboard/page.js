@@ -56,7 +56,7 @@ export default function BorrowerDashboard() {
     try {
       console.log('🔄 Loading loans for debtor dashboard...');
       // Use temporary backend while Fabric issues are resolved
-      const res = await fetch('http://localhost:4002/api/loans?org=debtor');
+      const res = await fetch('/api/loans?org=debtor');
       const data = await res.json();
       console.log('📋 Received data:', data);
       
@@ -96,7 +96,7 @@ export default function BorrowerDashboard() {
     try {
       console.log('✅ Approving loan:', loanId);
       // Use temporary backend while Fabric issues are resolved
-      const res = await fetch(`http://localhost:4002/api/loans/${encodeURIComponent(loanId)}/borrower/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org: 'debtor' }) });
+      const res = await fetch(`/api/loans/${encodeURIComponent(loanId)}/borrower/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org: 'debtor' }) });
       if (!res.ok) throw new Error((await res.json()).error || 'Confirm failed');
       console.log('✅ Loan approved, reloading data...');
       
@@ -126,7 +126,7 @@ export default function BorrowerDashboard() {
       const reason = prompt('Please provide a reason for rejection:');
       if (!reason) return;
       // Use temporary backend while Fabric issues are resolved
-      const res = await fetch(`http://localhost:4002/api/loans/${encodeURIComponent(loanId)}/borrower/reject`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org: 'debtor', reason }) });
+      const res = await fetch(`/api/loans/${encodeURIComponent(loanId)}/borrower/reject`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org: 'debtor', reason }) });
       if (!res.ok) throw new Error((await res.json()).error || 'Reject failed');
       
       // Immediate reload
