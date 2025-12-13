@@ -8,9 +8,12 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const http = require('http');
+const { Server } = require('socket.io');
 require('dotenv').config();
 
 const logger = require('./utils/logger');
+const authRoutes = require('./routes/auth');
 const loanRoutes = require('./routes/loans');
 const governanceRoutes = require('./routes/governance');
 const healthRoutes = require('./routes/health');
@@ -20,6 +23,20 @@ const errorHandler = require('./middleware/errorHandler');
 const app = express();
 const PORT = process.env.PORT || 4000;
 const HOST = process.env.HOST || 'localhost';
+
+// Create HTTP server
+const httpServer = http.createServer(app);
+
+// Initialize Socket.IO
+const io = new Server(httpServer, {
+  cors: {
+    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    credentials: true
+  }
+});
+
+// Make io available to routes
+app.set('io', io);
 
 // ============================================================================
 // MIDDLEWARE CONFIGURATION
@@ -65,6 +82,7 @@ app.use('/api/', limiter);
 app.use('/health', healthRoutes);
 
 // API routes
+app.use('/api/auth', authRoutes);
 app.use('/api/loans', loanRoutes);
 app.use('/api/governance', governanceRoutes);
 
@@ -76,6 +94,7 @@ app.get('/', (req, res) => {
     status: 'running',
     endpoints: {
       health: '/health',
+      auth: '/api/auth',
       loans: '/api/loans',
       governance: '/api/governance'
     }
@@ -94,10 +113,22 @@ app.use((req, res) => {
 app.use(errorHandler);
 
 // ============================================================================
+// SOCKET.IO CONNECTION HANDLING
+// ============================================================================
+
+io.on('connection', (socket) => {
+  logger.info(`🔌 Client connected: ${socket.id}`);
+
+  socket.on('disconnect', () => {
+    logger.info(`🔌 Client disconnected: ${socket.id}`);
+  });
+});
+
+// ============================================================================
 // SERVER STARTUP
 // ============================================================================
 
-const server = app.listen(PORT, HOST, () => {
+const server = httpServer.listen(PORT, HOST, () => {
   logger.info(`🚀 IU Unified Backend Server started`);
   logger.info(`📍 Server running at http://${HOST}:${PORT}`);
   logger.info(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
@@ -105,6 +136,7 @@ const server = app.listen(PORT, HOST, () => {
   logger.info(`   - Governance Channel: ${process.env.CHANNEL_GOVERNANCE}`);
   logger.info(`   - Financial Channel: ${process.env.CHANNEL_FINANCIAL}`);
   logger.info(`   - Chaincode: ${process.env.CHAINCODE_NAME}`);
+  logger.info(`🔌 WebSocket Server: Ready`);
 });
 
 // Graceful shutdown

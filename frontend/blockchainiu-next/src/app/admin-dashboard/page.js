@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import io from 'socket.io-client';
 
 export default function AdminDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
@@ -32,6 +33,34 @@ export default function AdminDashboard() {
       window.location.href = '/';
     }
     loadLoanRecords();
+
+    // Setup WebSocket connection for real-time updates
+    const socket = io('http://localhost:4000', {
+      transports: ['websocket', 'polling'],
+      reconnection: true
+    });
+
+    socket.on('connect', () => {
+      console.log('🔌 WebSocket connected to server');
+    });
+
+    socket.on('loan-update', (update) => {
+      console.log('🔔 Real-time loan update received:', update.type, update.data);
+      setLastRefresh(new Date());
+
+      // Refresh loan data to get latest state
+      loadLoanRecords();
+      setRefreshKey(prev => prev + 1);
+    });
+
+    socket.on('disconnect', () => {
+      console.log('🔌 WebSocket disconnected from server');
+    });
+
+    // Cleanup on unmount
+    return () => {
+      socket.disconnect();
+    };
   }, []);
 
   // Force reload when refreshKey changes
@@ -41,16 +70,6 @@ export default function AdminDashboard() {
       loadLoanRecords();
     }
   }, [refreshKey]);
-
-  // Additional effect to ensure data is always fresh
-  useEffect(() => {
-    const interval = setInterval(() => {
-      console.log('🔄 Auto-refresh triggered');
-      loadLoanRecords();
-    }, 10000); // Refresh every 10 seconds
-
-    return () => clearInterval(interval);
-  }, []);
 
   const logout = () => {
     localStorage.removeItem('loggedInUser');
@@ -66,14 +85,19 @@ export default function AdminDashboard() {
     try {
       setLoanLoading(true);
       console.log('🔄 Loading loans for admin dashboard...');
-      // Using real Fabric backend
-      const res = await fetch('/api/loans?org=admin');
+      // Admin sees all loans - no userId filter needed
+      const res = await fetch('/api/loans?org=government');
       const data = await res.json();
       console.log('📋 Received data:', data);
-      const filteredData = Array.isArray(data) ? data.filter(r => r.docType === 'SimpleLoan') : [];
-      console.log('📊 Filtered data count:', filteredData.length);
-      setLoanRecords(filteredData);
-      setLastRefresh(new Date());
+
+      if (data.success) {
+        const filteredData = (data.data || []).filter(r => r.docType === 'SimpleLoan');
+        console.log('📊 Filtered data count:', filteredData.length);
+        setLoanRecords(filteredData);
+        setLastRefresh(new Date());
+      } else {
+        throw new Error(data.error || 'Failed to load loans');
+      }
     } catch (error) {
       console.error('❌ Error loading loans:', error);
       setLoanRecords([]);
@@ -85,39 +109,41 @@ export default function AdminDashboard() {
   const adminApprove = async (id) => {
     try {
       console.log('✅ Admin approving loan:', id);
-      // Using real Fabric backend
-      const res = await fetch(`/api/loans/${encodeURIComponent(id)}/admin/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org: 'admin' }) });
+      const res = await fetch(`/api/loans/${encodeURIComponent(id)}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes: 'Approved by admin' })
+      });
+
       if (!res.ok) throw new Error((await res.json()).error || 'Approve failed');
-      console.log('✅ Loan approved, reloading data...');
-      await loadLoanRecords();
-      setRefreshKey(prev => prev + 1); // Force re-render
-      // Force another reload after a short delay to ensure data is fresh
-      setTimeout(async () => {
-        await loadLoanRecords();
-        setRefreshKey(prev => prev + 1);
-      }, 500);
-      setTimeout(() => alert('Loan approved successfully!'), 100); // Small delay to ensure UI updates
-    } catch (e) { 
+      console.log('✅ Loan approved');
+
+      // WebSocket will trigger reload automatically
+      alert('Loan approved successfully!');
+    } catch (e) {
       console.error('❌ Error approving loan:', e);
-      alert(e.message); 
+      alert(e.message);
     }
   };
 
   const adminReject = async (id) => {
     try {
       const reason = prompt('Reason for rejection?') || '';
-      // Using real Fabric backend
-      const res = await fetch(`/api/loans/${encodeURIComponent(id)}/admin/reject`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org: 'admin', reason }) });
+      if (!reason) return;
+
+      const res = await fetch(`/api/loans/${encodeURIComponent(id)}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason })
+      });
+
       if (!res.ok) throw new Error((await res.json()).error || 'Reject failed');
-      await loadLoanRecords();
-      setRefreshKey(prev => prev + 1); // Force re-render
-      // Force another reload after a short delay to ensure data is fresh
-      setTimeout(async () => {
-        await loadLoanRecords();
-        setRefreshKey(prev => prev + 1);
-      }, 500);
-      setTimeout(() => alert('Loan rejected successfully!'), 100); // Small delay to ensure UI updates
-    } catch (e) { alert(e.message); }
+
+      // WebSocket will trigger reload automatically
+      alert('Loan rejected successfully!');
+    } catch (e) {
+      alert(e.message);
+    }
   };
 
   const openDetails = (record) => { setDetailsRecord(record); setDetailsOpen(true); };
@@ -180,18 +206,8 @@ export default function AdminDashboard() {
           </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-gray-500">
-              Last updated: {lastRefresh.toLocaleTimeString()}
+              Last updated: {lastRefresh.toLocaleTimeString()} (real-time updates)
             </span>
-            <button
-              onClick={() => {
-                console.log('🔄 Manual refresh triggered');
-                loadLoanRecords();
-                setRefreshKey(prev => prev + 1);
-              }}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
-            >
-              🔄 Refresh
-            </button>
           </div>
         </div>
 
@@ -213,8 +229,8 @@ export default function AdminDashboard() {
           </div>
           <div className="card bg-white p-6 rounded-lg shadow hover:shadow-lg transition">
             <h3 className="text-blue-800 font-bold mb-2">System Health</h3>
-            <p className="card-number text-3xl font-bold text-blue-600">99.9%</p>
-            <p>Blockchain uptime</p>
+            <p className="card-number text-3xl font-bold text-blue-600">Active</p>
+            <p>Blockchain operational</p>
           </div>
         </section>
 
@@ -266,13 +282,9 @@ export default function AdminDashboard() {
 
           {activeTab === 'all-records' && (
             <div className="all-records bg-white p-6 rounded-lg shadow mb-6">
-              <div className="flex justify-between items-center mb-4">
+              <div className="mb-4">
                 <h2 className="text-xl font-bold">Submitted Loan Records</h2>
-                <div className="flex gap-2">
-                  <button onClick={loadLoanRecords} className="bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700">
-                    {loanLoading ? 'Refreshing...' : 'Refresh'}
-                  </button>
-                </div>
+                <p className="text-sm text-gray-500">Real-time updates</p>
               </div>
               <div className="overflow-auto">
                 <table className="w-full border-collapse text-sm">
@@ -328,18 +340,13 @@ export default function AdminDashboard() {
                   <h2 className="text-xl font-bold mb-2">Institution Performance</h2>
                   <p className="mb-4">Creditor and borrower activity</p>
                   <div className="bg-white rounded-lg p-4 shadow">
-                    <div className="flex justify-between mb-2">
-                      <span>HDFC Bank Ltd</span>
-                      <span className="bg-green-600 text-white rounded-full px-2 text-sm">Active</span>
-                    </div>
-                    <div className="flex justify-between mb-2">
-                      <span>State Bank of India</span>
-                      <span className="bg-green-600 text-white rounded-full px-2 text-sm">Active</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Reliance Capital Ltd</span>
-                      <span className="bg-green-600 text-white rounded-full px-2 text-sm">Responsive</span>
-                    </div>
+                    {Array.from(new Set(loanRecords.map(r => r.creditorName).filter(Boolean))).slice(0, 5).map((name, i) => (
+                      <div key={i} className="flex justify-between mb-2">
+                        <span>{name}</span>
+                        <span className="bg-green-600 text-white rounded-full px-2 text-sm">Active</span>
+                      </div>
+                    ))}
+                    {loanRecords.length === 0 && <div className="text-gray-500">No active institutions</div>}
                   </div>
                 </div>
               </div>
@@ -371,24 +378,17 @@ export default function AdminDashboard() {
               <p className="mb-4">Blockchain and system performance metrics</p>
               <div className="bg-white rounded-lg p-4 shadow">
                 <div className="flex justify-between mb-2">
-                  <span>Blockchain Integrity</span>
-                  <span className="bg-green-600 text-white rounded-full px-2 text-sm">100%</span>
+                  <span>Blockchain Status</span>
+                  <span className="bg-green-600 text-white rounded-full px-2 text-sm">Operational</span>
                 </div>
                 <div className="flex justify-between mb-2">
-                  <span>Network Uptime</span>
-                  <span className="bg-green-600 text-white rounded-full px-2 text-sm">99.9%</span>
-                </div>
-                <div className="flex justify-between mb-2">
-                  <span>Transaction Success Rate</span>
-                  <span className="bg-green-600 text-white rounded-full px-2 text-sm">99.7%</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Average Response Time</span>
-                  <span className="bg-gray-300 rounded-full px-2 text-sm">2.3s</span>
+                  <span>Network Connection</span>
+                  <span className="bg-green-600 text-white rounded-full px-2 text-sm">Connected</span>
                 </div>
                 <button
                   id="downloadReportBtn"
                   className="mt-4 w-full bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700"
+                  onClick={() => alert('Report generation not implemented yet')}
                 >
                   Download System Report
                 </button>

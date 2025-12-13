@@ -16,6 +16,25 @@ const CHAINCODE_NAME = process.env.CHAINCODE_NAME || 'iu-unified';
 const CONTRACT_NAME = 'LoanContract';
 
 /**
+ * Helper function to emit real-time updates via WebSocket
+ */
+function emitLoanUpdate(req, eventType, loanData) {
+  try {
+    const io = req.app.get('io');
+    if (io) {
+      io.emit('loan-update', {
+        type: eventType,
+        data: loanData,
+        timestamp: new Date().toISOString()
+      });
+      logger.info(`🔌 WebSocket event emitted: ${eventType} for loan ${loanData.loanId || loanData.id}`);
+    }
+  } catch (error) {
+    logger.warn('Failed to emit WebSocket event:', error.message);
+  }
+}
+
+/**
  * Simple access verification helper.
  * Replace with real auth/ACL in production.
  */
@@ -57,8 +76,14 @@ router.post('/', secureUpload.array('documents', 10), async (req, res, next) => 
 
     const loanData = JSON.parse(loanDataString);
 
-    // Validate required fields
-    const required = ['loanId', 'creditorId', 'borrowerId', 'amount', 'interestRate', 'term', 'purpose'];
+    // Auto-generate loan ID (format: LOAN-YYYYMMDD-HHMMSS-RANDOM)
+    const now = new Date();
+    const dateStr = now.toISOString().replace(/[-:]/g, '').slice(0, 15);
+    const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
+    loanData.loanId = `LOAN-${dateStr}-${randomStr}`;
+
+    // Validate required fields (loanId is now auto-generated)
+    const required = ['creditorId', 'borrowerId', 'amount', 'interestRate', 'term', 'purpose'];
     for (const field of required) {
       if (!loanData[field]) {
         return res.status(400).json({
@@ -157,10 +182,15 @@ router.post('/', secureUpload.array('documents', 10), async (req, res, next) => 
       }
     }
 
+    const createdLoan = JSON.parse(result);
+
+    // Emit real-time update
+    emitLoanUpdate(req, 'loan-created', createdLoan);
+
     res.status(201).json({
       success: true,
       message: 'Loan created successfully with encrypted documents',
-      data: JSON.parse(result),
+      data: createdLoan,
       documentsUploaded: uploadedDocuments.length,
       documents: uploadedDocuments.map(doc => ({
         documentId: doc.documentId,
@@ -178,11 +208,12 @@ router.post('/', secureUpload.array('documents', 10), async (req, res, next) => 
 
 /**
  * GET /api/loans
- * Query loans (filtered by organization)
+ * Query loans (filtered by organization and user ID)
+ * Query params: org, userId (optional - filters by creditorId or borrowerId based on org)
  */
 router.get('/', async (req, res, next) => {
   try {
-    const { org = 'creditor' } = req.query;
+    const { org = 'creditor', userId } = req.query;
 
     // Validate organization
     if (!['government', 'creditor', 'debtor'].includes(org)) {
@@ -192,7 +223,7 @@ router.get('/', async (req, res, next) => {
       });
     }
 
-    logger.info(`Querying loans for ${org}`);
+    logger.info(`Querying loans for ${org}${userId ? ` (userId: ${userId})` : ''}`);
 
     const result = await fabricGateway.evaluateTransaction(
       org,
@@ -202,7 +233,21 @@ router.get('/', async (req, res, next) => {
       'queryLoans'
     );
 
-    const loans = JSON.parse(result);
+    let loans = JSON.parse(result);
+
+    // Filter loans based on user ID and role
+    if (userId) {
+      if (org === 'creditor') {
+        // Creditors see only loans they created
+        loans = loans.filter(loan => loan.creditorId === userId);
+        logger.info(`Filtered to ${loans.length} loans for creditor ${userId}`);
+      } else if (org === 'debtor') {
+        // Debtors see only loans assigned to them
+        loans = loans.filter(loan => loan.borrowerId === userId);
+        logger.info(`Filtered to ${loans.length} loans for debtor ${userId}`);
+      }
+      // Admin (government) sees all loans - no filtering
+    }
 
     res.json({
       success: true,
@@ -274,10 +319,15 @@ router.post('/:loanId/approve', async (req, res, next) => {
       notes
     );
 
+    const approvedLoan = JSON.parse(result);
+
+    // Emit real-time update
+    emitLoanUpdate(req, 'loan-approved', approvedLoan);
+
     res.json({
       success: true,
       message: 'Loan approved by admin',
-      data: JSON.parse(result)
+      data: approvedLoan
     });
   } catch (error) {
     logger.error('Error approving loan:', error);
@@ -306,10 +356,15 @@ router.post('/:loanId/reject', async (req, res, next) => {
       reason
     );
 
+    const rejectedLoan = JSON.parse(result);
+
+    // Emit real-time update
+    emitLoanUpdate(req, 'loan-rejected', rejectedLoan);
+
     res.json({
       success: true,
       message: 'Loan rejected by admin',
-      data: JSON.parse(result)
+      data: rejectedLoan
     });
   } catch (error) {
     logger.error('Error rejecting loan:', error);
@@ -336,10 +391,15 @@ router.post('/:loanId/accept', async (req, res, next) => {
       loanId
     );
 
+    const acceptedLoan = JSON.parse(result);
+
+    // Emit real-time update
+    emitLoanUpdate(req, 'loan-accepted', acceptedLoan);
+
     res.json({
       success: true,
       message: 'Loan accepted by borrower',
-      data: JSON.parse(result)
+      data: acceptedLoan
     });
   } catch (error) {
     logger.error('Error accepting loan:', error);
@@ -368,10 +428,15 @@ router.post('/:loanId/decline', async (req, res, next) => {
       reason
     );
 
+    const declinedLoan = JSON.parse(result);
+
+    // Emit real-time update
+    emitLoanUpdate(req, 'loan-declined', declinedLoan);
+
     res.json({
       success: true,
       message: 'Loan declined by borrower',
-      data: JSON.parse(result)
+      data: declinedLoan
     });
   } catch (error) {
     logger.error('Error declining loan:', error);
@@ -615,6 +680,20 @@ router.post('/:loanId/documents', secureUpload.array('documents', 5), async (req
         userId
       );
     }
+
+    // Get updated loan data
+    const updatedLoanResult = await fabricGateway.evaluateTransaction(
+      org,
+      CHANNEL_NAME,
+      CHAINCODE_NAME,
+      CONTRACT_NAME,
+      'getLoan',
+      loanId
+    );
+    const updatedLoan = JSON.parse(updatedLoanResult);
+
+    // Emit real-time update
+    emitLoanUpdate(req, 'loan-documents-added', updatedLoan);
 
     res.status(201).json({
       success: true,

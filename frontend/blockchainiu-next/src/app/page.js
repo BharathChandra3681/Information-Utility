@@ -48,32 +48,59 @@ export default function Home() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleLogin = () => {
-    const demoCredentials = {
-      'Creditor': { email: 'creditor@hdfc.com', password: 'demo123', redirect: '/creditor-dashboard' },
-      'Corporate Debtor': { email: 'corporatedebtor@reliance.com', password: 'demo123', redirect: '/borrower-dashboard' },
-      'Admin': { email: 'admin@iu.gov.in', password: 'demo123', redirect: '/admin-dashboard' }
-    };
-
+  const handleLogin = async () => {
     // Trim inputs to avoid accidental whitespace issues
     const role = (formData.role || '').trim();
     const email = (formData.email || '').trim();
     const password = (formData.password || '').trim();
 
-    if (
-      demoCredentials[role] &&
-      email === demoCredentials[role].email &&
-      password === demoCredentials[role].password
-    ) {
+    if (!email || !password || !role) {
+      alert('Please fill in all fields');
+      return;
+    }
+
+    try {
+      // Call authentication API
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, role })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        alert(data.error || 'Invalid credentials or role. Please try again.');
+        return;
+      }
+
+      // Store user data with ID in localStorage
+      const userData = {
+        userId: data.user.userId,
+        email: data.user.email,
+        role: data.user.role,
+        organization: data.user.organization,
+        firstName: data.user.firstName,
+        lastName: data.user.lastName
+      };
+
       try {
-        localStorage.setItem('loggedInUser', JSON.stringify({ email, role }));
+        localStorage.setItem('loggedInUser', JSON.stringify(userData));
       } catch (_) {
         // ignore storage errors
       }
-      // Prefer client navigation to avoid full reload issues
-      router.push(demoCredentials[role].redirect);
-    } else {
-      alert('Invalid credentials or role. Please try again.');
+
+      // Navigate to appropriate dashboard
+      const redirectPaths = {
+        'Creditor': '/creditor-dashboard',
+        'Corporate Debtor': '/borrower-dashboard',
+        'Admin': '/admin-dashboard'
+      };
+
+      router.push(redirectPaths[role] || '/');
+    } catch (error) {
+      console.error('Login error:', error);
+      alert('Login failed. Please try again.');
     }
   };
 

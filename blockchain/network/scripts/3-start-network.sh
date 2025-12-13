@@ -13,7 +13,7 @@ echo "   STARTING HYPERLEDGER FABRIC NETWORK"
 echo "==============================================="
 
 # Navigate to docker directory
-cd ../docker
+cd "$NETWORK_DIR/docker"
 
 # Start network
 echo "🐳 Starting Docker containers..."

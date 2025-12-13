@@ -1,20 +1,25 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import io from 'socket.io-client';
 
 export default function CreditorDashboard() {
   const [activeTab, setActiveTab] = useState('overview');
   const [submittedRecords, setSubmittedRecords] = useState([]);
   const [formData, setFormData] = useState({
-    borrowerName: '',
+    borrowerId: '',
     loanAmount: '',
     loanStartDate: '',
     maturityDate: '',
-    loanStatus: 'Active',
+    interestRate: '',
+    term: '',
+    purpose: '',
     assetRecords: '',
     balanceSheet: '',
     existingLiabilities: ''
   });
+  const [availableBorrowers, setAvailableBorrowers] = useState([]);
+  const [loadingBorrowers, setLoadingBorrowers] = useState(false);
   const [dropdownStatus, setDropdownStatus] = useState({});
   const [selectedFile, setSelectedFile] = useState(null);
   const [loanIdForUpload, setLoanIdForUpload] = useState('');
@@ -27,6 +32,8 @@ export default function CreditorDashboard() {
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [detailsRecord, setDetailsRecord] = useState(null);
   const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [userOrg, setUserOrg] = useState('');
+  const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
     // Check logged in user role
@@ -34,34 +41,81 @@ export default function CreditorDashboard() {
     if (!loggedInUser || loggedInUser.role !== 'Creditor') {
       alert('Unauthorized access. Please login as Creditor.');
       window.location.href = '/';
+      return;
     }
-    setIsAdmin(loggedInUser?.role === 'Admin');
-    // Load from chain (not localStorage)
-    fetchLoans();
+
+    setCurrentUser(loggedInUser);
+    setUserOrg(loggedInUser.organization || 'Creditor');
+    setIsAdmin(loggedInUser.role === 'Admin');
+
+    // Load available borrowers for dropdown
+    loadBorrowers();
+    // Load loans for this creditor
+    fetchLoans(loggedInUser.userId);
     // Load my documents list
-    loadMyDocs(loggedInUser?.email);
-  }, []);
+    loadMyDocs(loggedInUser.userId);
 
-  // Auto-refresh every 15 seconds to catch borrower approvals
-  useEffect(() => {
-    const interval = setInterval(() => {
-      console.log('🔄 Auto-refresh triggered for creditor dashboard');
-      fetchLoans();
-    }, 15000); // Refresh every 15 seconds
+    // Setup WebSocket connection for real-time updates
+    const socket = io('http://localhost:4000', {
+      transports: ['websocket', 'polling'],
+      reconnection: true
+    });
 
-    return () => clearInterval(interval);
-  }, []);
+    socket.on('connect', () => {
+      console.log('🔌 WebSocket connected to server');
+    });
 
-  const fetchLoans = async () => {
-    try {
-      console.log('🔄 Fetching loans for creditor dashboard...');
-      // Use temporary backend while Fabric issues are resolved
-      const res = await fetch('/api/loans?org=creditor');
-      const data = await res.json();
-      const list = Array.isArray(data) ? data : [];
-      setSubmittedRecords(list.filter(r => r.docType === 'SimpleLoan'));
+    socket.on('loan-update', (update) => {
+      console.log('🔔 Real-time loan update received:', update.type, update.data);
       setLastRefresh(new Date());
-      console.log('✅ Loans fetched successfully, count:', list.filter(r => r.docType === 'SimpleLoan').length);
+
+      // Refresh loan data to get latest state
+      fetchLoans(loggedInUser.userId);
+
+      // If documents were added, reload documents list
+      if (update.type === 'loan-documents-added') {
+        loadMyDocs(loggedInUser.userId);
+      }
+    });
+
+    socket.on('disconnect', () => {
+      console.log('🔌 WebSocket disconnected from server');
+    });
+
+    // Cleanup on unmount
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
+
+  const loadBorrowers = async () => {
+    try {
+      setLoadingBorrowers(true);
+      const res = await fetch('/api/auth/users?role=Corporate Debtor');
+      const data = await res.json();
+      if (data.success) {
+        setAvailableBorrowers(data.users || []);
+      }
+    } catch (error) {
+      console.error('Error loading borrowers:', error);
+      setAvailableBorrowers([]);
+    } finally {
+      setLoadingBorrowers(false);
+    }
+  };
+
+  const fetchLoans = async (userId) => {
+    if (!userId) return;
+    try {
+      console.log('🔄 Fetching loans for creditor:', userId);
+      const res = await fetch(`/api/loans?org=creditor&userId=${userId}`);
+      const data = await res.json();
+      if (data.success) {
+        const list = data.data || [];
+        setSubmittedRecords(list.filter(r => r.docType === 'SimpleLoan'));
+        setLastRefresh(new Date());
+        console.log('✅ Loans fetched successfully, count:', list.filter(r => r.docType === 'SimpleLoan').length);
+      }
     } catch (error) {
       console.error('❌ Error fetching loans:', error);
       setSubmittedRecords([]);
@@ -156,61 +210,81 @@ export default function CreditorDashboard() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const {
-      borrowerName,
-      loanAmount,
-      loanStartDate,
-      maturityDate,
-      loanStatus,
-      assetRecords,
-      balanceSheet,
-      existingLiabilities
-    } = formData;
 
-    const isBlank = (s) => !s || !String(s).trim();
-    const isValidDate = (s) => {
-      if (isBlank(s)) return false;
-      const iso = /^\d{4}-\d{2}-\d{2}$/.test(String(s).trim());
-      if (iso) return true;
-      const n = normalizeDate(s);
-      return /^\d{4}-\d{2}-\d{2}$/.test(n);
-    };
-
-    const startISO = normalizeDate(loanStartDate);
-    const maturityISO = normalizeDate(maturityDate);
-
-    if (isBlank(borrowerName) || isBlank(loanAmount) || !isValidDate(startISO)) {
-      alert('Please fill in required fields (Borrower, Amount, Start Date).');
+    if (!currentUser) {
+      alert('User session expired. Please login again.');
       return;
     }
 
-    const loanId = `LOAN${Date.now()}`;
+    const {
+      borrowerId,
+      loanAmount,
+      loanStartDate,
+      maturityDate,
+      interestRate,
+      term,
+      purpose
+    } = formData;
+
+    // Validate required fields
+    if (!borrowerId || !loanAmount || !loanStartDate || !interestRate || !term || !purpose) {
+      alert('Please fill in all required fields (marked with *).');
+      return;
+    }
+
+    const startISO = normalizeDate(loanStartDate);
+    const maturityISO = maturityDate ? normalizeDate(maturityDate) : '';
 
     try {
-      // Use temporary backend while Fabric issues are resolved
+      // Prepare loan data for submission
+      const loanData = {
+        creditorId: currentUser.userId,
+        borrowerId: borrowerId,
+        amount: String(loanAmount).trim(),
+        interestRate: String(interestRate).trim(),
+        term: String(term).trim(),
+        purpose: String(purpose).trim(),
+        loanStartDate: startISO,
+        maturityDate: maturityISO
+      };
+
+      // Create FormData for multipart upload
+      const form = new FormData();
+      form.append('loanData', JSON.stringify(loanData));
+
       const res = await fetch('/api/loans', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ loanId, borrowerName: String(borrowerName).trim(), loanAmount: String(loanAmount).trim(), loanStartDate: startISO, maturityDate: maturityISO || '', org: 'creditor' })
+        body: form
       });
+
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || 'Submission failed');
       }
-      await fetchLoans();
+
+      const result = await res.json();
+      console.log('Loan created:', result);
+
+      await fetchLoans(currentUser.userId);
+
+      // Reset form
       setFormData({
-        borrowerName: '',
+        borrowerId: '',
         loanAmount: '',
         loanStartDate: '',
         maturityDate: '',
-        loanStatus: 'Active',
+        interestRate: '',
+        term: '',
+        purpose: '',
         assetRecords: '',
         balanceSheet: '',
         existingLiabilities: ''
       });
+
       setActiveTab('records');
-      alert('Loan submitted successfully!');
+      alert(`Loan created successfully! Loan ID: ${result.data.loanId}`);
     } catch (err) {
+      console.error('Error creating loan:', err);
       alert(err.message);
     }
   };
@@ -290,21 +364,12 @@ export default function CreditorDashboard() {
       <header className="bg-white shadow-md p-4 sticky top-0 z-50 flex justify-between items-center">
         <div>
           <h1 className="text-blue-800 font-bold text-xl">Creditor Dashboard</h1>
-          <p className="text-gray-600">HDFC Bank Ltd - Manage loan records and track verification status</p>
+          <p className="text-gray-600">{userOrg} - Manage loan records and track verification status</p>
           <p className="text-xs text-gray-500 mt-1">
             Last updated: {lastRefresh.toISOString().slice(11, 19)}
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => {
-              console.log('🔄 Manual refresh triggered from creditor dashboard');
-              fetchLoans();
-            }}
-            className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition shadow-lg font-semibold text-lg flex items-center gap-2"
-          >
-            🔄 Refresh Data
-          </button>
           <button
             id="logoutBtn"
             onClick={logout}
@@ -334,7 +399,7 @@ export default function CreditorDashboard() {
         </div>
         <div className="card bg-white rounded-lg shadow p-6 text-center">
           <h2 className="text-blue-800 font-bold mb-2">Total Exposure</h2>
-          <div className="text-3xl font-bold text-blue-600">₹2.4K Cr</div>
+          <div className="text-3xl font-bold text-blue-600">—</div>
         </div>
       </div>
 
@@ -374,14 +439,7 @@ export default function CreditorDashboard() {
           </div>
           <div className="panel bg-white rounded-lg shadow p-6">
             <h3 className="font-bold text-lg mb-4">Pending Actions</h3>
-            <div className="loan-item border border-gray-200 rounded-lg p-4 mb-2">
-              Loan Expiring Soon<br />
-              <small>Reliance Capital - Due in 3 days</small>
-            </div>
-            <div className="loan-item border border-gray-200 rounded-lg p-4">
-              Monthly Report Ready<br />
-              <small>December 2024 compliance report</small>
-            </div>
+            <div className="text-gray-500">No pending actions required.</div>
           </div>
         </div>
       )}
@@ -390,102 +448,105 @@ export default function CreditorDashboard() {
         <div className="section p-6">
           <div className="panel bg-white rounded-lg shadow p-6">
             <h3 className="font-bold text-lg mb-4">+ Submit New Loan Record</h3>
-            <p className="mb-4">Record new loan and financial data on the blockchain for borrower verification</p>
+            <p className="mb-4">Record new loan and financial data on the blockchain for borrower verification (Loan ID will be auto-generated)</p>
             <form onSubmit={handleSubmit} noValidate>
               <div className="form-group mb-4">
-                <label>Borrower Name *</label>
-                <input
-                  type="text"
-                  name="borrowerName"
-                  placeholder="e.g., Reliance Capital Ltd"
-                  value={formData.borrowerName}
-                  onChange={handleInputChange}
-                  className="w-full p-3 border rounded-lg"
-                  required
-                />
-              </div>
-              <div className="form-group mb-4">
-                <label>Loan Amount *</label>
-                <input
-                  type="text"
-                  name="loanAmount"
-                  placeholder="e.g., ₹500 Crore"
-                  value={formData.loanAmount}
-                  onChange={handleInputChange}
-                  className="w-full p-3 border rounded-lg"
-                  required
-                />
-              </div>
-              <div className="form-group mb-4">
-                <label>Loan Start Date *</label>
-                <input
-                  type="date"
-                  name="loanStartDate"
-                  value={formData.loanStartDate}
-                  onChange={handleInputChange}
-                  className="w-full p-3 border rounded-lg"
-                  placeholder="YYYY-MM-DD"
-                  inputMode="numeric"
-                  pattern="\d{4}-\d{2}-\d{2}"
-                  required
-                />
-              </div>
-              <div className="form-group mb-4">
-                <label>Maturity Date</label>
-                <input
-                  type="date"
-                  name="maturityDate"
-                  value={formData.maturityDate}
-                  onChange={handleInputChange}
-                  className="w-full p-3 border rounded-lg"
-                  placeholder="YYYY-MM-DD"
-                  inputMode="numeric"
-                  pattern="\d{4}-\d{2}-\d{2}"
-                />
-              </div>
-              <div className="form-group mb-4">
-                <label>Current Loan Status</label>
+                <label>Select Borrower (Corporate Debtor) *</label>
                 <select
-                  name="loanStatus"
-                  value={formData.loanStatus}
+                  name="borrowerId"
+                  value={formData.borrowerId}
                   onChange={handleInputChange}
                   className="w-full p-3 border rounded-lg"
                   required
+                  disabled={loadingBorrowers}
                 >
-                  <option value="">Select loan status</option>
-                  <option value="Active">Active</option>
-                  <option value="Defaulted">Defaulted</option>
+                  <option value="">-- Select a borrower --</option>
+                  {availableBorrowers.map(borrower => (
+                    <option key={borrower.userId} value={borrower.userId}>
+                      {borrower.organization} ({borrower.email})
+                    </option>
+                  ))}
                 </select>
+                {loadingBorrowers && <p className="text-sm text-gray-500 mt-1">Loading borrowers...</p>}
               </div>
-              <div className="form-group mb-4">
-                <label>Asset Records</label>
-                <textarea
-                  name="assetRecords"
-                  placeholder="Describe assets, collateral, etc."
-                  value={formData.assetRecords}
-                  onChange={handleInputChange}
-                  className="w-full p-3 border rounded-lg"
-                />
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="form-group mb-4">
+                  <label>Loan Amount *</label>
+                  <input
+                    type="number"
+                    name="loanAmount"
+                    placeholder="e.g., 50000000"
+                    value={formData.loanAmount}
+                    onChange={handleInputChange}
+                    className="w-full p-3 border rounded-lg"
+                    required
+                  />
+                </div>
+                <div className="form-group mb-4">
+                  <label>Interest Rate (%) *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    name="interestRate"
+                    placeholder="e.g., 8.5"
+                    value={formData.interestRate}
+                    onChange={handleInputChange}
+                    className="w-full p-3 border rounded-lg"
+                    required
+                  />
+                </div>
               </div>
-              <div className="form-group mb-4">
-                <label>Balance Sheet Summary</label>
-                <textarea
-                  name="balanceSheet"
-                  placeholder="Total assets, liabilities, equity details..."
-                  value={formData.balanceSheet}
-                  onChange={handleInputChange}
-                  className="w-full p-3 border rounded-lg"
-                />
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="form-group mb-4">
+                  <label>Loan Term (months) *</label>
+                  <input
+                    type="number"
+                    name="term"
+                    placeholder="e.g., 60"
+                    value={formData.term}
+                    onChange={handleInputChange}
+                    className="w-full p-3 border rounded-lg"
+                    required
+                  />
+                </div>
+                <div className="form-group mb-4">
+                  <label>Loan Purpose *</label>
+                  <input
+                    type="text"
+                    name="purpose"
+                    placeholder="e.g., Working Capital"
+                    value={formData.purpose}
+                    onChange={handleInputChange}
+                    className="w-full p-3 border rounded-lg"
+                    required
+                  />
+                </div>
               </div>
-              <div className="form-group mb-4">
-                <label>Existing Liabilities</label>
-                <textarea
-                  name="existingLiabilities"
-                  placeholder="Other outstanding loans, obligations..."
-                  value={formData.existingLiabilities}
-                  onChange={handleInputChange}
-                  className="w-full p-3 border rounded-lg"
-                />
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="form-group mb-4">
+                  <label>Loan Start Date *</label>
+                  <input
+                    type="date"
+                    name="loanStartDate"
+                    value={formData.loanStartDate}
+                    onChange={handleInputChange}
+                    className="w-full p-3 border rounded-lg"
+                    required
+                  />
+                </div>
+                <div className="form-group mb-4">
+                  <label>Maturity Date</label>
+                  <input
+                    type="date"
+                    name="maturityDate"
+                    value={formData.maturityDate}
+                    onChange={handleInputChange}
+                    className="w-full p-3 border rounded-lg"
+                  />
+                </div>
               </div>
               <div className="form-buttons flex justify-end gap-4">
                 <button type="button" className="btn-draft bg-gray-300 text-gray-700 rounded-lg px-4 py-2" onClick={() => alert('Draft saved!')}>
@@ -535,20 +596,9 @@ export default function CreditorDashboard() {
       {activeTab === 'records' && (
         <div className="section p-6">
           <div className="panel bg-white rounded-lg shadow p-6">
-            <div className="flex justify-between items-center mb-4">
-              <div>
-                <h3 className="font-bold text-lg">Submitted Loan Records</h3>
-                <p className="text-gray-600">Track status of all your submitted loan records</p>
-              </div>
-              <button
-                onClick={() => {
-                  console.log('🔄 Refresh submitted records triggered');
-                  fetchLoans();
-                }}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition text-sm font-semibold flex items-center gap-2"
-              >
-                🔄 Refresh Records
-              </button>
+            <div className="mb-4">
+              <h3 className="font-bold text-lg">Submitted Loan Records</h3>
+              <p className="text-gray-600">Track status of all your submitted loan records (real-time updates)</p>
             </div>
             {submittedRecords.map(record => (
               <div key={record.loanId || record.transactionId} className="loan-item flex justify-between items-center border border-gray-200 rounded-lg p-4 mb-2" data-status={record.status}>
@@ -576,13 +626,10 @@ export default function CreditorDashboard() {
           </div>
 
           <div className="panel bg-white rounded-lg shadow p-6 mt-6">
-            <div className="flex items-center justify-between mb-3">
+            <div className="mb-3">
               <h3 className="font-bold text-lg">My Documents</h3>
-              <button onClick={() => loadMyDocs()} className="bg-blue-600 text-white px-3 py-1 rounded-lg hover:bg-blue-700">
-                {loadingDocs ? 'Refreshing...' : 'Refresh'}
-              </button>
             </div>
-            <p className="mb-4">Documents you uploaded. Admin will verify and anchor their hashes on-chain.</p>
+            <p className="mb-4">Documents you uploaded. Admin will verify and anchor their hashes on-chain (real-time updates).</p>
             <div className="overflow-auto">
               <table className="w-full border-collapse text-sm">
                 <thead className="bg-blue-100 text-blue-800">

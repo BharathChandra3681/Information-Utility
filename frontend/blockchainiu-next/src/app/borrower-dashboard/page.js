@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import io from 'socket.io-client';
 
 // Client-only component to prevent hydration issues
 function ClientOnlyTime({ date }) {
@@ -33,18 +34,36 @@ export default function BorrowerDashboard() {
       window.location.href = '/';
       return;
     }
-    loadLoans();
-  }, []);
 
+    // Load loans for this specific borrower
+    loadLoans(loggedInUser.userId);
 
-  // Additional effect to ensure data is always fresh
-  useEffect(() => {
-    const interval = setInterval(() => {
-      console.log('🔄 Auto-refresh triggered');
-      loadLoans();
-    }, 10000); // Refresh every 10 seconds
+    // Setup WebSocket connection for real-time updates
+    const socket = io('http://localhost:4000', {
+      transports: ['websocket', 'polling'],
+      reconnection: true
+    });
 
-    return () => clearInterval(interval);
+    socket.on('connect', () => {
+      console.log('🔌 WebSocket connected to server');
+    });
+
+    socket.on('loan-update', (update) => {
+      console.log('🔔 Real-time loan update received:', update.type, update.data);
+      setLastRefresh(new Date());
+
+      // Refresh loan data to get latest state
+      loadLoans(loggedInUser.userId);
+    });
+
+    socket.on('disconnect', () => {
+      console.log('🔌 WebSocket disconnected from server');
+    });
+
+    // Cleanup on unmount
+    return () => {
+      socket.disconnect();
+    };
   }, []);
 
   const logout = () => {
@@ -52,40 +71,43 @@ export default function BorrowerDashboard() {
     window.location.href = '/';
   };
 
-  const loadLoans = async () => {
+  const loadLoans = async (userId) => {
+    if (!userId) return;
+
     try {
-      console.log('🔄 Loading loans for debtor dashboard...');
-      // Use temporary backend while Fabric issues are resolved
-      const res = await fetch('/api/loans?org=debtor');
+      console.log('🔄 Loading loans for debtor:', userId);
+      const res = await fetch(`/api/loans?org=debtor&userId=${userId}`);
       const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to load loans');
+      }
+
       console.log('📋 Received data:', data);
-      
-      const all = Array.isArray(data) ? data.filter(r => r.docType === 'SimpleLoan') : [];
+
+      const all = data.data || [];
       const pending = all.filter(r => r.status === 'awaiting-borrower' || r.status === 'awaiting-admin');
       const confirmed = all.filter(r => r.status === 'confirmed');
       const rejected = all.filter(r => r.status === 'rejected-by-borrower' || r.status === 'rejected-by-admin');
-      
-      console.log('📊 Filtered data:', { 
+
+      console.log('📊 Filtered data:', {
         total: all.length,
-        pending: pending.length, 
-        confirmed: confirmed.length, 
-        rejected: rejected.length 
+        pending: pending.length,
+        confirmed: confirmed.length,
+        rejected: rejected.length
       });
-      console.log('📊 Pending loans:', pending.map(p => ({ id: p.loanId, status: p.status, borrower: p.borrowerName })));
-      console.log('📊 Confirmed loans:', confirmed.map(c => ({ id: c.loanId, status: c.status, borrower: c.borrowerName })));
-      console.log('📊 Rejected loans:', rejected.map(r => ({ id: r.loanId, status: r.status, borrower: r.borrowerName })));
-      
+
       // Force state update by creating new objects and ensuring proper state management
-      const newLoanRecords = { 
-        pending: [...pending], 
-        confirmed: [...confirmed], 
-        rejected: [...rejected] 
+      const newLoanRecords = {
+        pending: [...pending],
+        confirmed: [...confirmed],
+        rejected: [...rejected]
       };
-      
+
       console.log('🔄 Setting new loan records:', newLoanRecords);
       setLoanRecords(newLoanRecords);
       setLastRefresh(new Date());
-      
+
     } catch (error) {
       console.error('❌ Error loading loans:', error);
       setLoanRecords({ pending: [], confirmed: [], rejected: [] });
@@ -94,59 +116,48 @@ export default function BorrowerDashboard() {
 
   const handleConfirm = async (loanId) => {
     try {
+      const loggedInUser = JSON.parse(localStorage.getItem('loggedInUser'));
+      if (!loggedInUser) return;
+
       console.log('✅ Approving loan:', loanId);
-      // Use temporary backend while Fabric issues are resolved
-      const res = await fetch(`/api/loans/${encodeURIComponent(loanId)}/borrower/approve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org: 'debtor' }) });
+      const res = await fetch(`/api/loans/${encodeURIComponent(loanId)}/accept`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ org: 'debtor' })
+      });
+
       if (!res.ok) throw new Error((await res.json()).error || 'Confirm failed');
       console.log('✅ Loan approved, reloading data...');
-      
-      // Immediate reload
-      await loadLoans();
-      
-      // Additional reloads to ensure data consistency
-      setTimeout(async () => {
-        console.log('🔄 Secondary reload after approval...');
-        await loadLoans();
-      }, 1000);
-      
-      setTimeout(async () => {
-        console.log('🔄 Final reload after approval...');
-        await loadLoans();
-      }, 2000);
-      
+
+      // WebSocket will trigger reload automatically
       alert('Loan approved successfully!');
-    } catch (e) { 
+    } catch (e) {
       console.error('❌ Error approving loan:', e);
-      alert(e.message); 
+      alert(e.message);
     }
   };
 
   const handleReject = async (loanId) => {
     try {
+      const loggedInUser = JSON.parse(localStorage.getItem('loggedInUser'));
+      if (!loggedInUser) return;
+
       const reason = prompt('Please provide a reason for rejection:');
       if (!reason) return;
-      // Use temporary backend while Fabric issues are resolved
-      const res = await fetch(`/api/loans/${encodeURIComponent(loanId)}/borrower/reject`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ org: 'debtor', reason }) });
+
+      const res = await fetch(`/api/loans/${encodeURIComponent(loanId)}/decline`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ org: 'debtor', reason })
+      });
+
       if (!res.ok) throw new Error((await res.json()).error || 'Reject failed');
-      
-      // Immediate reload
-      await loadLoans();
-      
-      // Additional reloads to ensure data consistency
-      setTimeout(async () => {
-        console.log('🔄 Secondary reload after rejection...');
-        await loadLoans();
-      }, 1000);
-      
-      setTimeout(async () => {
-        console.log('🔄 Final reload after rejection...');
-        await loadLoans();
-      }, 2000);
-      
+
+      // WebSocket will trigger reload automatically
       alert('Loan rejected successfully!');
-    } catch (e) { 
+    } catch (e) {
       console.error('❌ Error rejecting loan:', e);
-      alert(e.message); 
+      alert(e.message);
     }
   };
 
@@ -221,17 +232,9 @@ export default function BorrowerDashboard() {
         <section className="dashboard-content">
           {activeTab === 'pending-review' && (
             <div>
-              <div className="mb-4 flex justify-between items-center">
+              <div className="mb-4">
                 <h3 className="text-lg font-semibold">Pending Review ({loanRecords.pending.length})</h3>
-                <button
-                  onClick={() => {
-                    console.log('🔄 Pending tab refresh triggered');
-                    loadLoans();
-                  }}
-                  className="bg-yellow-500 text-white px-4 py-2 rounded-lg hover:bg-yellow-600 transition text-sm"
-                >
-                  🔄 Refresh
-                </button>
+                <p className="text-sm text-gray-500">Real-time updates</p>
               </div>
               {loanRecords.pending.map(record => (
                 <div key={record.loanId || record.transactionId} className="loan-record border border-gray-200 rounded-lg p-6 mb-6 bg-white shadow-lg">
@@ -363,17 +366,9 @@ export default function BorrowerDashboard() {
 
           {activeTab === 'confirmed' && (
             <div>
-              <div className="mb-4 flex justify-between items-center">
+              <div className="mb-4">
                 <h3 className="text-xl font-bold">Confirmed Loan Records ({loanRecords.confirmed.length})</h3>
-                <button
-                  onClick={() => {
-                    console.log('🔄 Confirmed tab refresh triggered');
-                    loadLoans();
-                  }}
-                  className="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition text-sm"
-                >
-                  🔄 Refresh
-                </button>
+                <p className="text-sm text-gray-500">Real-time updates</p>
               </div>
               <p className="mb-4">Records you have confirmed and verified</p>
               {loanRecords.confirmed.map(record => (
@@ -397,17 +392,9 @@ export default function BorrowerDashboard() {
 
           {activeTab === 'rejected' && (
             <div>
-              <div className="mb-4 flex justify-between items-center">
+              <div className="mb-4">
                 <h3 className="text-xl font-bold">Rejected Loan Records ({loanRecords.rejected.length})</h3>
-                <button
-                  onClick={() => {
-                    console.log('🔄 Rejected tab refresh triggered');
-                    loadLoans();
-                  }}
-                  className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition text-sm"
-                >
-                  🔄 Refresh
-                </button>
+                <p className="text-sm text-gray-500">Real-time updates</p>
               </div>
               <p className="mb-4">Records you have disputed or rejected</p>
               {loanRecords.rejected.map(record => (

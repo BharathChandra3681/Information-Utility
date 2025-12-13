@@ -13,13 +13,13 @@ echo "   CREATING BLOCKCHAIN CHANNELS"
 echo "==============================================="
 
 export CORE_PEER_TLS_ENABLED=true
-export ORDERER_CA=${PWD}/"${NETWORK_DIR}/organizations/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/msp/tlscacerts/tlsca.iu-network.com-cert.pem
+export ORDERER_CA="${NETWORK_DIR}/organizations/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/msp/tlscacerts/tlsca.iu-network.com-cert.pem"
 export FABRIC_CFG_PATH=${PWD}/../config
 
 # Set peer environment to Government (for channel creation)
 export CORE_PEER_LOCALMSPID="GovernmentMSP"
-export CORE_PEER_TLS_ROOTCERT_FILE=${PWD}/"${NETWORK_DIR}/organizations/peerOrganizations/government.iu-network.com/peers/peer0.government.iu-network.com/tls/ca.crt
-export CORE_PEER_MSPCONFIGPATH=${PWD}/"${NETWORK_DIR}/organizations/peerOrganizations/government.iu-network.com/users/Admin@government.iu-network.com/msp
+export CORE_PEER_TLS_ROOTCERT_FILE="${NETWORK_DIR}/organizations/peerOrganizations/government.iu-network.com/peers/peer0.government.iu-network.com/tls/ca.crt"
+export CORE_PEER_MSPCONFIGPATH="${NETWORK_DIR}/organizations/peerOrganizations/government.iu-network.com/users/Admin@government.iu-network.com/msp"
 export CORE_PEER_ADDRESS=localhost:7051
 
 # ============================================================================
@@ -30,9 +30,9 @@ echo "📊 Creating governance-channel (Government monitoring)..."
 docker exec cli peer channel create \
   -o orderer.iu-network.com:7050 \
   -c governance-channel \
-  -f"${NETWORK_DIR}/channel-artifacts/governance-channel.tx \
-  --outputBlock"${NETWORK_DIR}/channel-artifacts/governance-channel.block \
-  --tls --cafile /opt/gopath/src/github.com/hyperledger/fabric/pe"${NETWORK_DIR}/organizations/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/msp/tlscacerts/tlsca.iu-network.com-cert.pem
+  -f /opt/gopath/src/github.com/hyperledger/fabric/peer/channel-artifacts/governance-channel.tx \
+  --outputBlock /opt/gopath/src/github.com/hyperledger/fabric/peer/channel-artifacts/governance-channel.block \
+  --tls --cafile /opt/gopath/src/github.com/hyperledger/fabric/peer/organizations/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/msp/tlscacerts/tlsca.iu-network.com-cert.pem
 
 if [ $? -eq 0 ]; then
   echo "✅ governance-channel created successfully"
@@ -51,9 +51,9 @@ echo "💰 Creating financial-operations-channel (Loan processing)..."
 docker exec cli peer channel create \
   -o orderer.iu-network.com:7050 \
   -c financial-operations-channel \
-  -f"${NETWORK_DIR}/channel-artifacts/financial-operations-channel.tx \
-  --outputBlock"${NETWORK_DIR}/channel-artifacts/financial-operations-channel.block \
-  --tls --cafile /opt/gopath/src/github.com/hyperledger/fabric/pe"${NETWORK_DIR}/organizations/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/msp/tlscacerts/tlsca.iu-network.com-cert.pem
+  -f /opt/gopath/src/github.com/hyperledger/fabric/peer/channel-artifacts/financial-operations-channel.tx \
+  --outputBlock /opt/gopath/src/github.com/hyperledger/fabric/peer/channel-artifacts/financial-operations-channel.block \
+  --tls --cafile /opt/gopath/src/github.com/hyperledger/fabric/peer/organizations/ordererOrganizations/iu-network.com/orderers/orderer.iu-network.com/msp/tlscacerts/tlsca.iu-network.com-cert.pem
 
 if [ $? -eq 0 ]; then
   echo "✅ financial-operations-channel created successfully"
