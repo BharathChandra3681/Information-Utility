@@ -10,6 +10,7 @@ const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const http = require('http');
 const { Server } = require('socket.io');
+const mongoose = require('mongoose');
 require('dotenv').config();
 
 const logger = require('./utils/logger');
@@ -18,6 +19,26 @@ const loanRoutes = require('./routes/loans');
 const governanceRoutes = require('./routes/governance');
 const healthRoutes = require('./routes/health');
 const errorHandler = require('./middleware/errorHandler');
+
+// MongoDB Connection
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/iu-network';
+mongoose.connect(MONGODB_URI)
+  .then(() => {
+    logger.info('✅ Connected to MongoDB');
+  })
+  .catch((error) => {
+    logger.error('❌ MongoDB connection error:', error);
+    process.exit(1);
+  });
+
+// Handle MongoDB connection events
+mongoose.connection.on('disconnected', () => {
+  logger.warn('⚠️  MongoDB disconnected');
+});
+
+mongoose.connection.on('reconnected', () => {
+  logger.info('✅ MongoDB reconnected');
+});
 
 // Initialize Express app
 const app = express();

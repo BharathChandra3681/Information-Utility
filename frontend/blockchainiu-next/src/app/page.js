@@ -86,6 +86,8 @@ export default function Home() {
 
       try {
         localStorage.setItem('loggedInUser', JSON.stringify(userData));
+        // Store JWT token separately for API authentication
+        localStorage.setItem('authToken', data.token);
       } catch (_) {
         // ignore storage errors
       }

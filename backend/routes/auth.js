@@ -1,12 +1,17 @@
 /**
  * Authentication Routes
- * Handles user login and authentication
+ * Handles user login and authentication with JWT
  */
 
 const express = require('express');
 const router = express.Router();
+const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const logger = require('../utils/logger');
+
+// JWT Secret (In production, use environment variable)
+const JWT_SECRET = process.env.JWT_SECRET || 'iu-blockchain-secret-key-change-in-production';
+const JWT_EXPIRES_IN = '24h';
 
 /**
  * POST /api/auth/login
@@ -55,7 +60,19 @@ router.post('/login', async (req, res, next) => {
       });
     }
 
-    // Return user data (without password)
+    // Generate JWT token
+    const token = jwt.sign(
+      {
+        userId: user.userId,
+        email: user.email,
+        role: user.role,
+        organization: user.organization
+      },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRES_IN }
+    );
+
+    // Return user data (without password) and token
     const userData = user.toSafeObject();
 
     logger.info(`User logged in successfully: ${user.email} (${user.userId})`);
@@ -63,7 +80,8 @@ router.post('/login', async (req, res, next) => {
     res.json({
       success: true,
       message: 'Login successful',
-      user: userData
+      user: userData,
+      token: token
     });
 
   } catch (error) {

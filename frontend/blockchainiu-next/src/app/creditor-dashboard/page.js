@@ -21,6 +21,7 @@ export default function CreditorDashboard() {
   const [availableBorrowers, setAvailableBorrowers] = useState([]);
   const [loadingBorrowers, setLoadingBorrowers] = useState(false);
   const [dropdownStatus, setDropdownStatus] = useState({});
+  const [loanDocuments, setLoanDocuments] = useState([]);
   const [selectedFile, setSelectedFile] = useState(null);
   const [loanIdForUpload, setLoanIdForUpload] = useState('');
   const [uploadResponse, setUploadResponse] = useState(null);
@@ -31,22 +32,34 @@ export default function CreditorDashboard() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [detailsRecord, setDetailsRecord] = useState(null);
-  const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [lastRefresh, setLastRefresh] = useState(null);
   const [userOrg, setUserOrg] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
+    // Mark as client-side rendered
+    setIsClient(true);
+    setLastRefresh(new Date());
+
     // Check logged in user role
-    const loggedInUser = JSON.parse(localStorage.getItem('loggedInUser'));
-    if (!loggedInUser || loggedInUser.role !== 'Creditor') {
+    const loggedInUser = localStorage.getItem('loggedInUser');
+    if (!loggedInUser) {
       alert('Unauthorized access. Please login as Creditor.');
       window.location.href = '/';
       return;
     }
 
-    setCurrentUser(loggedInUser);
-    setUserOrg(loggedInUser.organization || 'Creditor');
-    setIsAdmin(loggedInUser.role === 'Admin');
+    const userData = JSON.parse(loggedInUser);
+    if (userData.role !== 'Creditor') {
+      alert('Unauthorized access. Please login as Creditor.');
+      window.location.href = '/';
+      return;
+    }
+
+    setCurrentUser(userData);
+    setUserOrg(userData.organization || 'Creditor');
+    setIsAdmin(userData.role === 'Admin');
 
     // Load available borrowers for dropdown
     loadBorrowers();
@@ -166,10 +179,34 @@ export default function CreditorDashboard() {
     return s;
   };
 
+  // Calculate loan term in months from start and maturity dates
+  const calculateTermInMonths = (startDate, maturityDate) => {
+    if (!startDate || !maturityDate) return '';
+
+    const start = new Date(startDate);
+    const end = new Date(maturityDate);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) return '';
+
+    const months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+    return months > 0 ? months : '';
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    const v = (name === 'loanStartDate' || name === 'maturityDate') ? normalizeDate(value) : value;
-    setFormData(prev => ({ ...prev, [name]: v }));
+
+    setFormData(prev => {
+      const updated = { ...prev, [name]: value };
+
+      // Auto-calculate term when dates are provided
+      if (name === 'loanStartDate' || name === 'maturityDate') {
+        const startDate = name === 'loanStartDate' ? value : prev.loanStartDate;
+        const endDate = name === 'maturityDate' ? value : prev.maturityDate;
+        updated.term = calculateTermInMonths(startDate, endDate);
+      }
+
+      return updated;
+    });
   };
 
   const handleDropdownToggle = (id) => {
@@ -227,13 +264,37 @@ export default function CreditorDashboard() {
     } = formData;
 
     // Validate required fields
-    if (!borrowerId || !loanAmount || !loanStartDate || !interestRate || !term || !purpose) {
-      alert('Please fill in all required fields (marked with *).');
+    if (!borrowerId || !borrowerId.trim()) {
+      alert('Please select a borrower (Corporate Debtor).');
+      return;
+    }
+    if (!loanAmount || loanAmount <= 0) {
+      alert('Please enter a valid loan amount greater than 0.');
+      return;
+    }
+    if (!loanStartDate || !loanStartDate.trim()) {
+      alert('Please select a loan start date.');
+      return;
+    }
+    if (!maturityDate || !maturityDate.trim()) {
+      alert('Please select a maturity date.');
+      return;
+    }
+    if (!interestRate || interestRate <= 0) {
+      alert('Please enter a valid interest rate greater than 0.');
+      return;
+    }
+    if (!term || term <= 0) {
+      alert('Maturity date must be after the start date. Please check the dates.');
+      return;
+    }
+    if (!purpose || !purpose.trim()) {
+      alert('Please enter the loan purpose.');
       return;
     }
 
     const startISO = normalizeDate(loanStartDate);
-    const maturityISO = maturityDate ? normalizeDate(maturityDate) : '';
+    const maturityISO = normalizeDate(maturityDate);
 
     try {
       // Prepare loan data for submission
@@ -251,6 +312,11 @@ export default function CreditorDashboard() {
       // Create FormData for multipart upload
       const form = new FormData();
       form.append('loanData', JSON.stringify(loanData));
+
+      // Append all loan documents
+      loanDocuments.forEach((file, index) => {
+        form.append('documents', file);
+      });
 
       const res = await fetch('/api/loans', {
         method: 'POST',
@@ -280,9 +346,11 @@ export default function CreditorDashboard() {
         balanceSheet: '',
         existingLiabilities: ''
       });
+      setLoanDocuments([]);
 
       setActiveTab('records');
-      alert(`Loan created successfully! Loan ID: ${result.data.loanId}`);
+      alert(`Loan created successfully! Loan ID: ${result.data.loanId}${loanDocuments.length > 0 ? `\n${loanDocuments.length} document(s) uploaded` : ''}`);
+
     } catch (err) {
       console.error('Error creating loan:', err);
       alert(err.message);
@@ -359,15 +427,29 @@ export default function CreditorDashboard() {
     }
   };
 
+  // Show loading state during server-side render or initial client load
+  if (!isClient) {
+    return (
+      <div className="font-inter bg-gray-100 min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="font-inter bg-gray-100 min-h-screen">
       <header className="bg-white shadow-md p-4 sticky top-0 z-50 flex justify-between items-center">
         <div>
           <h1 className="text-blue-800 font-bold text-xl">Creditor Dashboard</h1>
           <p className="text-gray-600">{userOrg} - Manage loan records and track verification status</p>
-          <p className="text-xs text-gray-500 mt-1">
-            Last updated: {lastRefresh.toISOString().slice(11, 19)}
-          </p>
+          {lastRefresh && (
+            <p className="text-xs text-gray-500 mt-1">
+              Last updated: {lastRefresh.toISOString().slice(11, 19)}
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -498,30 +580,58 @@ export default function CreditorDashboard() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="form-group mb-4">
-                  <label>Loan Term (months) *</label>
+              <div className="form-group mb-4">
+                <label>Loan Purpose *</label>
+                <input
+                  type="text"
+                  name="purpose"
+                  placeholder="e.g., Working Capital, Equipment Purchase, Business Expansion"
+                  value={formData.purpose}
+                  onChange={handleInputChange}
+                  className="w-full p-3 border rounded-lg"
+                  required
+                />
+              </div>
+
+              {/* Document Upload Section */}
+              <div className="form-group mb-4">
+                <label className="block mb-2 font-semibold text-gray-700">
+                  📎 Upload Supporting Documents (Optional)
+                </label>
+                <p className="text-sm text-gray-600 mb-3">
+                  Upload loan agreements, collateral documents, financial statements, etc.
+                </p>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 hover:border-blue-400 transition">
                   <input
-                    type="number"
-                    name="term"
-                    placeholder="e.g., 60"
-                    value={formData.term}
-                    onChange={handleInputChange}
-                    className="w-full p-3 border rounded-lg"
-                    required
+                    type="file"
+                    multiple
+                    accept="application/pdf,image/*,.doc,.docx"
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      setLoanDocuments(files);
+                    }}
+                    className="w-full"
+                    id="loan-documents-upload"
                   />
-                </div>
-                <div className="form-group mb-4">
-                  <label>Loan Purpose *</label>
-                  <input
-                    type="text"
-                    name="purpose"
-                    placeholder="e.g., Working Capital"
-                    value={formData.purpose}
-                    onChange={handleInputChange}
-                    className="w-full p-3 border rounded-lg"
-                    required
-                  />
+                  {loanDocuments.length > 0 && (
+                    <div className="mt-3 space-y-1">
+                      <p className="text-sm font-semibold text-green-600">✅ Selected {loanDocuments.length} file(s):</p>
+                      {loanDocuments.map((file, idx) => (
+                        <div key={idx} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                          <span className="text-sm text-gray-700">📄 {file.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLoanDocuments(prev => prev.filter((_, i) => i !== idx));
+                            }}
+                            className="text-red-600 hover:text-red-800 text-sm"
+                          >
+                            ✕ Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -538,14 +648,20 @@ export default function CreditorDashboard() {
                   />
                 </div>
                 <div className="form-group mb-4">
-                  <label>Maturity Date</label>
+                  <label>Maturity Date *</label>
                   <input
                     type="date"
                     name="maturityDate"
                     value={formData.maturityDate}
                     onChange={handleInputChange}
                     className="w-full p-3 border rounded-lg"
+                    required
                   />
+                  {formData.term && (
+                    <p className="text-sm text-green-600 mt-1">
+                      ✓ Loan Term: {formData.term} months
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="form-buttons flex justify-end gap-4">
@@ -560,35 +676,88 @@ export default function CreditorDashboard() {
           </div>
 
           <div className="panel bg-white rounded-lg shadow p-6 mt-6">
-            <h3 className="font-bold text-lg mb-4">+ Upload Supporting Documents</h3>
-            <p className="mb-4">Upload loan-related documents for admin verification. Hash will be anchored on-chain after approval.</p>
-            <form onSubmit={handleDocumentUpload} className="space-y-4" noValidate>
-              <div>
-                <label className="block mb-1">Loan ID *</label>
-                <input
-                  type="text"
-                  value={loanIdForUpload}
-                  onChange={(e) => setLoanIdForUpload(e.target.value)}
-                  placeholder="e.g., LOAN001"
-                  className="w-full p-3 border rounded-lg"
-                  required
-                />
+            <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+              📎 Add Additional Documents to Existing Loans
+            </h3>
+            <p className="mb-4 text-gray-600">
+              Use this section to upload <strong>additional</strong> documents to loans you've already created.
+              For new loans, upload documents in the form above.
+            </p>
+
+            {submittedRecords.length === 0 ? (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+                <p className="text-blue-800">ℹ️ No existing loans. Create a loan above first.</p>
               </div>
-              <div>
-                <label className="block mb-1">Select Document *</label>
-                <input
-                  type="file"
-                  accept="application/pdf,image/*"
-                  onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-                  className="w-full"
-                />
-              </div>
-              <div className="flex justify-end gap-3">
-                <button type="submit" disabled={isUploading} className="bg-blue-600 text-white rounded-lg px-4 py-2 hover:bg-blue-700 disabled:opacity-50">
-                  {isUploading ? 'Uploading...' : 'Upload for Verification'}
-                </button>
-              </div>
-            </form>
+            ) : (
+              <form onSubmit={handleDocumentUpload} className="space-y-4" noValidate>
+                <div>
+                  <label className="block mb-2 font-semibold text-gray-700">Select Loan to Upload Document For *</label>
+                  <select
+                    value={loanIdForUpload}
+                    onChange={(e) => setLoanIdForUpload(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                  >
+                    <option value="">-- Select a loan from your submitted records --</option>
+                    {submittedRecords.map(loan => (
+                      <option key={loan.loanId} value={loan.loanId}>
+                        {loan.loanId} - {loan.borrowerName || 'N/A'} - ₹{loan.loanAmount} ({statusLabel(loan.status)})
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-sm text-gray-500 mt-1">💡 Select from your existing loans to attach documents</p>
+                </div>
+
+                <div>
+                  <label className="block mb-2 font-semibold text-gray-700">Select Document File *</label>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-blue-400 transition">
+                    <input
+                      type="file"
+                      accept="application/pdf,image/*,.doc,.docx"
+                      onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                      className="w-full"
+                      id="file-upload"
+                    />
+                    {selectedFile && (
+                      <p className="mt-2 text-sm text-green-600">✅ Selected: {selectedFile.name}</p>
+                    )}
+                    {!selectedFile && (
+                      <p className="text-sm text-gray-500 mt-2">📄 Supported formats: PDF, Images, Word Documents</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLoanIdForUpload('');
+                      setSelectedFile(null);
+                      const fileInput = document.getElementById('file-upload');
+                      if (fileInput) fileInput.value = '';
+                    }}
+                    className="bg-gray-300 text-gray-700 rounded-lg px-6 py-2 hover:bg-gray-400 transition"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isUploading || !loanIdForUpload || !selectedFile}
+                    className="bg-blue-600 text-white rounded-lg px-6 py-2 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition flex items-center gap-2"
+                  >
+                    {isUploading ? (
+                      <>
+                        <span className="animate-spin">⏳</span> Uploading...
+                      </>
+                    ) : (
+                      <>
+                        📤 Upload for Verification
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
